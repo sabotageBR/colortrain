@@ -10,6 +10,7 @@ import {
 } from './pecas.js';
 import { completo, bloco } from '../jogo/regras.js';
 import { CORES } from './tema.js';
+import { criarCarga, passoCarga, impulsoCarga } from './fisica.js';
 
 /** @typedef {import('./tema.js').Tema} Tema */
 /** @typedef {ReturnType<typeof import('./layout.js').calcularLayout>} Layout */
@@ -88,7 +89,12 @@ export function criarCena(canvas) {
     let x = o.x, y = o.y;
     if (o.partida) {
       const t = (agora - o.partida.t0) / 1000;
-      if (t > 0) x -= 0.5 * o.partida.acel * t * t + 20 * t;
+      // o trem toma a folga dos engates: cada vagao so parte depois que o da
+      // frente andou a folga acumulada
+      if (t > 0) {
+        const d = 0.5 * o.partida.acel * t * t + 20 * t - (o.partida.folga || 0);
+        if (d > 0) x -= d;
+      }
     }
     if (!o.tw && o.tr != null) {
       const t0 = tremores.get(o.tr);
@@ -117,7 +123,7 @@ export function criarCena(canvas) {
         const alvo = alvoVaga(i, s);
         let c = carros.get(v.id);
         if (!c) {
-          c = { id: v.id, c: v.c, x: alvo.x, y: alvo.y, tr: i, s, tw: null, roda: 0, xAnt: alvo.x, lift: 0, liftAlvo: 0, esmaga: -1e9, partida: null };
+          c = { id: v.id, c: v.c, x: alvo.x, y: alvo.y, tr: i, s, tw: null, roda: 0, xAnt: alvo.x, lift: 0, liftAlvo: 0, esmaga: -1e9, partida: null, vx: 0, ax: 0, fis: criarCarga(v.c) };
           carros.set(v.id, c);
           return;
         }
@@ -196,6 +202,14 @@ export function criarCena(canvas) {
       particula({ tipo: 'v', x: x + (Math.random() - 0.5) * L * 0.08, y, vx: (Math.random() - 0.3) * 30 + (forte ? 50 : 0), vy: -35 - Math.random() * 35, g: -6, vida: 0.9 + Math.random() * 0.6, max: 1.5, r: L * (0.05 + Math.random() * 0.04) });
     }
   }
+  /** Graos (areia, cascalho, frutas) que pulam da carga no tranco. */
+  function graos(x, y, L, cor, n, forca) {
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
+      const v = (60 + Math.random() * 140) * forca;
+      particula({ tipo: 'g', x: x + (Math.random() - 0.5) * L * 0.7, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 900, vida: 0.5 + Math.random() * 0.3, max: 0.8, cor, r: L * (0.018 + Math.random() * 0.02) });
+    }
+  }
   function confete(x, y, L) {
     for (let i = 0; i < 22; i++) {
       const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
@@ -236,13 +250,16 @@ export function criarCena(canvas) {
     let fim = 0;
     ordem.forEach((l, i) => {
       const t0 = agora + 380 + i * 140;
-      const p = { t0, acel: Math.max(900, W * 1.6) };
-      l.partida = p;
+      const vagoes = [...carros.values()].filter((c) => c.tr === l.tr).sort((a, b) => a.s - b.s);
+      // trem pesado arranca devagar; a locomotiva patina nos primeiros metros
+      const acel = Math.max(700, W * 1.4) / (1 + 0.09 * vagoes.length);
+      l.partida = { t0, acel, folga: 0 };
+      l.esforco = { t0, n: vagoes.length, proximaFaisca: t0 };
       l.aceso = true;
-      for (const c of carros.values()) if (c.tr === l.tr) c.partida = p;
-      // tempo ate sair da tela: x + 0.5 a t^2 > largura
-      const dist = lay.xFim + lay.L * 2;
-      fim = Math.max(fim, 380 + i * 140 + Math.sqrt((2 * dist) / p.acel) * 1000);
+      vagoes.forEach((c) => { c.partida = { t0, acel, folga: (c.s + 1) * lay.L * 0.07 }; });
+      // tempo ate sair da tela: x + 0.5 a t^2 > largura (mais a folga do ultimo)
+      const dist = lay.xFim + lay.L * 2 + vagoes.length * lay.L * 0.07;
+      fim = Math.max(fim, 380 + i * 140 + Math.sqrt((2 * dist) / acel) * 1000);
     });
     return fim;
   }
@@ -252,15 +269,31 @@ export function criarCena(canvas) {
     if (!lay) return;
     for (const c of carros.values()) {
       const pousou = passo(c);
+      c.lift += (c.liftAlvo - c.lift) * Math.min(1, dt * 14);
+      const xv = posDesenho(c).x;
+      c.roda += (xv - c.xAnt) / (lay.rw || 1);
+      // velocidade e aceleracao do quadro, suavizadas, movem a carga
+      if (dt > 0) {
+        const vx = (xv - c.xAnt) / dt;
+        const ax = (vx - c.vx) / dt;
+        c.vx = vx;
+        c.ax += (ax - c.ax) * Math.min(1, dt * 25);
+      }
+      c.xAnt = xv;
       if (pousou && c.pousar) {
         c.pousar = false;
         c.esmaga = agora;
         poeira(c.x, c.y, lay.L);
+        impulsoCarga(c.fis, 0.9, c.vx >= 0 ? 1 : -1);
+        if (c.fis.tipo === 'areia' || c.fis.tipo === 'laranjas') graos(c.x, c.y - lay.L * 0.7, lay.L, CORES[c.c].base, 10, 1);
       }
-      c.lift += (c.liftAlvo - c.lift) * Math.min(1, dt * 14);
-      const xv = posDesenho(c).x;
-      c.roda += (xv - c.xAnt) / (lay.rw || 1);
-      c.xAnt = xv;
+      if (c.fis.joltT0 && agora >= c.fis.joltT0) {
+        c.fis.joltT0 = 0;
+        c.esmaga = agora;
+        impulsoCarga(c.fis, 0.55, -1);
+        if (c.fis.tipo === 'areia' || c.fis.tipo === 'laranjas') graos(c.x, c.y - lay.L * 0.7, lay.L, CORES[c.c].base, 6, 0.7);
+      }
+      passoCarga(c.fis, c.ax / lay.L, dt);
     }
     for (const l of locos.values()) {
       const chegou = passo(l);
@@ -272,12 +305,18 @@ export function criarCena(canvas) {
         vapor(pc.x, pc.y, lay.L, 6);
       }
       const xv = posDesenho(l).x;
-      l.roda += (xv - l.xAnt) / (lay.L * 0.15);
+      const esforco = l.esforco && agora > l.esforco.t0 && agora < l.esforco.t0 + 500 + l.esforco.n * 90;
+      // rodas patinam no arranque: giram mais do que o trem anda
+      l.roda += (xv - l.xAnt) / (lay.L * 0.15) + (esforco ? dt * 9 : 0);
       l.xAnt = xv;
+      if (esforco && agora >= l.esforco.proximaFaisca && l.esforco.n >= 2) {
+        l.esforco.proximaFaisca = agora + 70;
+        faiscas(xv + lay.L * 0.18, l.y);
+      }
       // fumaca: forte na partida, tranquila parado
       const pc = pontaChamine(xv, l.y, lay.L);
       const andando = l.partida && agora > l.partida.t0;
-      l.fum = (l.fum || 0) + dt * (andando ? 16 : l.aceso ? 1.2 : 0);
+      l.fum = (l.fum || 0) + dt * (andando ? (esforco ? 26 : 16) : l.aceso ? 1.2 : 0);
       while (l.fum >= 1) {
         l.fum -= 1;
         vapor(pc.x, pc.y, lay.L, 1, !!andando);
@@ -298,18 +337,19 @@ export function criarCena(canvas) {
     return p >= 0 && p < 1 ? 1 - 0.13 * Math.sin(Math.PI * p) : 1;
   }
 
-  /** Brilho no lastro de um trilho (selecao, destino possivel, alvo do arraste). */
+  /** Realce chapado de um trilho (selecao, destino possivel, alvo do arraste). */
   function realce(i, cor, forca) {
     if (!lay) return;
     const t = lay.trilhos[i];
     const L = lay.L;
     ctx.save();
+    caminhoRet(ctx, t.xIni - L * 0.04, t.yb - L * 0.3, t.xFim - t.xIni + L * 0.08, L * 0.44, L * 0.12);
+    ctx.fillStyle = cor;
+    ctx.globalAlpha = 0.12 + 0.18 * forca;
+    ctx.fill();
     ctx.strokeStyle = cor;
-    ctx.shadowColor = cor;
-    ctx.shadowBlur = L * 0.35 * forca;
-    ctx.lineWidth = Math.max(2, L * 0.05);
-    ctx.globalAlpha = 0.55 + 0.45 * forca;
-    caminhoRet(ctx, t.xIni - L * 0.04, t.yb - L * 0.31, t.xFim - t.xIni + L * 0.08, L * 0.49, L * 0.14);
+    ctx.lineWidth = Math.max(1.5, L * 0.03);
+    ctx.globalAlpha = 0.45 + 0.45 * forca;
     ctx.stroke();
     ctx.restore();
   }
@@ -333,21 +373,21 @@ export function criarCena(canvas) {
         desenharSimbolo(ctx, p.k, p.r);
         ctx.fill();
         ctx.restore();
+      } else if (p.tipo === 'g') {
+        ctx.fillStyle = p.cor;
+        ctx.globalAlpha = Math.min(1, k * 2.5);
+        ctx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+        ctx.globalAlpha = 1;
       } else if (p.tipo === 'p') {
         ctx.fillStyle = tema && tema.noite ? `rgba(120,115,150,${0.45 * k})` : `rgba(205,190,165,${0.6 * k})`;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r * (1 + (1 - k) * 1.5), 0, Math.PI * 2);
         ctx.fill();
       } else {
-        // fumaca: nuvem macia com miolo claro
-        const a = 0.55 * Math.min(1, k * 1.8);
-        const r = p.r * (1 + (1 - k) * 2.6);
-        const gr = ctx.createRadialGradient(p.x - r * 0.25, p.y - r * 0.25, r * 0.1, p.x, p.y, r);
-        const base = tema && tema.noite ? '200,195,230' : '255,255,255';
-        gr.addColorStop(0, `rgba(${base},${a})`);
-        gr.addColorStop(0.7, `rgba(${base},${a * 0.55})`);
-        gr.addColorStop(1, `rgba(${base},0)`);
-        ctx.fillStyle = gr;
+        // fumaca: circulo chapado que cresce e some
+        const a = 0.6 * Math.min(1, k * 1.8);
+        const r = p.r * (1 + (1 - k) * 2.4);
+        ctx.fillStyle = tema && tema.noite ? `rgba(205,200,235,${a})` : `rgba(255,255,255,${a})`;
         ctx.beginPath();
         ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
         ctx.fill();
@@ -428,7 +468,7 @@ export function criarCena(canvas) {
       for (const c of noTrilho) ligacoes(c, vis.get(c.id));
       for (const c of noTrilho) {
         const p = vis.get(c.id);
-        desenharVagao(ctx, p.x, p.y, c.c, L, tema, dpr, { roda: c.roda, escalaY: escalaEsmaga(c) });
+        desenharVagao(ctx, p.x, p.y, c.c, L, tema, dpr, { roda: c.roda, escalaY: escalaEsmaga(c), fis: c.fis });
       }
     }
 
@@ -455,7 +495,7 @@ export function criarCena(canvas) {
     for (const c of noAr) ligacoes(c, vis.get(c.id));
     for (const c of noAr) {
       const p = vis.get(c.id);
-      desenharVagao(ctx, p.x, p.y, c.c, L, tema, dpr, { roda: c.roda, brilho: Math.min(1, c.lift + (arrastados.has(c.id) ? 1 : 0)) });
+      desenharVagao(ctx, p.x, p.y, c.c, L, tema, dpr, { roda: c.roda, brilho: Math.min(1, c.lift + (arrastados.has(c.id) ? 1 : 0)), fis: c.fis, noAr: true });
     }
 
     desenharParticulas();
@@ -562,6 +602,10 @@ export function criarCena(canvas) {
       const n = st.trilhos[tr].length;
       const a = alvoVaga(tr, Math.max(0, n - 1));
       faiscas(a.x - lay.P / 2, a.y - lay.L * 0.2);
+      // o tranco corre do engate ate a frente do trem, vagao por vagao
+      relogio();
+      const fila = [...carros.values()].filter((c) => c.tr === tr).sort((x, y) => y.s - x.s);
+      fila.forEach((c, k) => { if (k > 0 && !c.tw) c.fis.joltT0 = agora + k * 45; });
     },
     /** @param {number} tr */
     comemorar(tr) {

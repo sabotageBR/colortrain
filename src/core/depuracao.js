@@ -1,7 +1,8 @@
 // Parametros de teste na URL. So valem em file://, localhost e 127.0.0.1:
 // na Poki nada disso existe. Unico modulo que le a URL.
 //   ?nivel=12   comeca no nivel 12
-//   ?tema=noite cenario noturno
+//   ?tema=festa  mundo fixo: campina, porto, deserto, serra, metropole, festa,
+//               inverno, tropico, outono, aurora
 //   ?auto=400   joga a solucao sozinho (uma jogada a cada 400 ms)
 //   ?fixo       sem a animacao de chegada
 //   ?semanuncio nao pede intervalo comercial (prints e testes longos)

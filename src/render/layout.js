@@ -1,5 +1,5 @@
 // Geometria da cena (pura): onde fica cada trilho, cada vaga, a locomotiva,
-// o sinal e a fachada da estacao, a partir do tamanho da tela e dos HUDs.
+// o sinal e a estacao, a partir do tamanho da tela e dos HUDs.
 //
 // Tudo e medido em L, o comprimento de um vagao em pixels CSS. Cada trilho,
 // da esquerda para a direita:
@@ -8,9 +8,9 @@
 
 export const PASSO = 1.1; // P / L
 export const LOCO = 1.32; // comprimento da locomotiva / L
-export const LINHA = 1.02; // distancia vertical entre trilhos / L
-export const TOPO_CARRO = 0.8; // do trilho ate o topo do teto / L
-export const BASE_LEITO = 0.15; // do trilho ate a borda de baixo do lastro / L
+export const LINHA = 0.96; // distancia vertical entre trilhos / L
+export const TOPO_CARRO = 0.8; // do trilho ate o topo do vagao / L
+export const BASE_LEITO = 0.15; // do trilho ate a borda de baixo do leito / L
 
 const SINAL = 0.42;
 const FOLGA_LOCO = 0.1;
@@ -22,22 +22,22 @@ export const larguraTrilho = (cap) => SINAL + LOCO + FOLGA_LOCO + cap * PASSO + 
 /**
  * @param {{ W: number, H: number, topo: number, base: number, n: number, cap: number, margem?: number, direita?: number }} e
  *   topo/base: faixa vertical livre entre os HUDs (px CSS); direita: faixa
- *   reservada para os botoes quando eles viram coluna (paisagem baixa)
+ *   reservada para a coluna de botoes (paisagem)
  */
 export function calcularLayout({ W, H, topo, base, n, cap, margem = 12, direita = 0 }) {
   const disponivel = Math.max(80, base - topo);
   const altura = (/** @type {number} */ L) => ((n - 1) * LINHA + TOPO_CARRO + BASE_LEITO) * L;
   const Wu = W - direita;
   const Lw = (Wu - margem * 2) / larguraTrilho(cap);
-  // reserva para a fachada da estacao: some se a tela for baixa
-  const reserva = Math.min(130, disponivel * 0.2);
+  // reserva para a estacao: some se a tela for baixa
+  const reserva = Math.min(110, disponivel * 0.16);
   const Lh = (disponivel - reserva) / ((n - 1) * LINHA + TOPO_CARRO + BASE_LEITO + 0.1);
-  const L = Math.max(18, Math.min(Lw, Lh, 96));
+  const L = Math.max(18, Math.min(Lw, Lh, 110));
   const P = L * PASSO;
   const h = altura(L);
   const sobra = disponivel - h;
-  // a fachada usa a sobra de cima; o resto centraliza o patio
-  const fachadaAlt = sobra > 46 ? Math.min(sobra * 0.72, 150) : 0;
+  // a estacao usa a sobra de cima (rampa, sem degrau); o resto centraliza o patio
+  const fachadaAlt = Math.max(0, Math.min((sobra - 30) * 0.9, 150));
   const yTabuleiro = topo + fachadaAlt + (sobra - fachadaAlt) * 0.5;
   const largura = larguraTrilho(cap) * L;
   const xIni = (Wu - largura) / 2;
@@ -55,16 +55,15 @@ export function calcularLayout({ W, H, topo, base, n, cap, margem = 12, direita 
     });
   }
   return {
-    W, H, L, P, n, cap,
+    W, H, Wu, L, P, n, cap,
     rw: 0.085 * L,
-    Hs: 0.42 * L,
-    Hr: 0.23 * L,
     Lg: LOCO * L,
     xIni,
     xFim: xIni + largura,
     yTabuleiro,
     yFimTabuleiro: yTabuleiro + h,
-    fachada: fachadaAlt > 0 ? { y0: topo - 40, y1: yTabuleiro - 0.06 * L, alt: fachadaAlt } : null,
+    /** faixa acima da placa para a estacao (alt 0 = sem predio) */
+    fachada: { y0: topo, y1: yTabuleiro - 0.12 * L, alt: fachadaAlt },
     trilhos,
     /** centro x da vaga s do trilho i */
     xVaga: (/** @type {number} */ i, /** @type {number} */ s) => trilhos[i].xFrente + s * P,

@@ -3,7 +3,7 @@
 // desenhadas pelo proprio desenharLoco.
 
 import { PINTURAS, desenharLoco, caminhoRet } from '../render/pecas.js';
-import { TEMAS } from '../render/tema.js';
+import { temaPorNivel } from '../render/tema.js';
 
 export const NIVEIS_POR_LOCO = 5;
 
@@ -20,8 +20,9 @@ export function nivelDaPintura(i, extras) {
 /**
  * Desenha a previa de uma pintura num canvas (bloqueada = silhueta).
  * @param {HTMLCanvasElement} cv @param {number} i @param {boolean} bloqueada
+ * @param {import('../render/tema.js').Tema} [tema]
  */
-export function desenharPrevia(cv, i, bloqueada) {
+export function desenharPrevia(cv, i, bloqueada, tema = temaPorNivel(1)) {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const w = cv.clientWidth || 120;
   const h = cv.clientHeight || 72;
@@ -31,13 +32,17 @@ export function desenharPrevia(cv, i, bloqueada) {
   g.scale(dpr, dpr);
   const L = Math.min(w / 1.7, h / 1.05);
   const y = h - 8;
-  g.fillStyle = 'rgba(80,60,40,0.25)';
-  caminhoRet(g, 4, y - 2, w - 8, 5, 2);
+  // trilho flat, como no patio (o fundo escuro vem do CSS)
+  g.fillStyle = tema.dormente;
+  caminhoRet(g, -4, y - L * 0.27, w + 8, L * 0.37, 4);
   g.fill();
-  desenharLoco(g, w / 2 + L * 0.05, y, L, TEMAS.dia, dpr, { pintura: PINTURAS[i], aceso: !bloqueada, roda: 0.6 });
+  g.fillStyle = tema.trilho;
+  g.fillRect(0, y - L * 0.16 - 2, w, 2);
+  g.fillRect(0, y, w, 2);
+  desenharLoco(g, w / 2 + L * 0.05, y, L, tema, dpr, { pintura: PINTURAS[i], aceso: !bloqueada, roda: 0.6 });
   if (bloqueada) {
     g.globalCompositeOperation = 'source-atop';
-    g.fillStyle = '#4A4166';
+    g.fillStyle = '#3A4055';
     g.fillRect(0, 0, w, h);
     g.globalCompositeOperation = 'source-over';
   }
@@ -45,7 +50,8 @@ export function desenharPrevia(cv, i, bloqueada) {
 
 /**
  * @param {{ textos: Record<string, string>, aoEscolher: (i: number) => void,
- *   aoLiberar: () => Promise<boolean>, aoAbrir: () => void, aoFechar: () => void }} o
+ *   aoLiberar: () => Promise<boolean>, aoAbrir: () => void, aoFechar: () => void,
+ *   tema?: () => import('../render/tema.js').Tema }} o
  */
 export function criarGaragem(o) {
   const painel = document.createElement('div');
@@ -89,7 +95,8 @@ export function criarGaragem(o) {
         montar();
       });
       grade.appendChild(b);
-      requestAnimationFrame(() => desenharPrevia(/** @type {HTMLCanvasElement} */ (b.querySelector('canvas')), i, !livre));
+      const tema = o.tema ? o.tema() : temaPorNivel(1);
+      requestAnimationFrame(() => desenharPrevia(/** @type {HTMLCanvasElement} */ (b.querySelector('canvas')), i, !livre, tema));
     });
     btLiberar.hidden = n >= PINTURAS.length || !estado.comAnuncio;
   }

@@ -28,7 +28,7 @@ const sdkFalso = `
     gameplayStop() { L('gameplayStop'); },
     commercialBreak(aoIniciar) { L('commercialBreak', parent.__calado()); if (aoIniciar) aoIniciar(); return new Promise((r) => setTimeout(() => { L('fimCommercial', parent.__calado()); r(); }, 400)); },
     rewardedBreak(o) { L('rewardedBreak', parent.__calado()); const ini = typeof o === 'function' ? o : o && o.onStart; if (ini) ini(); return new Promise((r) => setTimeout(() => r(${cenario === 'recusa' ? 'false' : 'true'}), 300)); },
-    measure(a, b, c) { L('measure', a + '/' + b + '/' + c); },
+    measure(a, b, c) { L('measure', a + '/' + b + '/' + c, parent.__calado()); },
     getDeviceInfo() { return { category: 'mobile' }; },
   };
 <\/script>`;
@@ -102,7 +102,9 @@ if (cenario === 'bloqueado' || cenario === 'pendente') {
   conferir(!depoisCb.includes('gameplayStart'), 'gameplayStart depois do anuncio sem novo toque');
   const fimCb = log.find((l) => l[1] === 'fimCommercial');
   conferir(fimCb && fimCb[2] === true, 'som voltou antes do fim do anuncio');
-  conferir(!window.__calado(), 'som nao voltou depois do anuncio');
+  // o som volta antes de o nivel 6 comecar (num instante fixo outro anuncio pode estar aberto)
+  const m6 = log[iMedida('level/6/start')];
+  conferir(m6 && m6[3] === false, 'som nao voltou depois do anuncio');
   const medidas = log.filter((l) => l[1] === 'measure').map((l) => l[2]);
   conferir(medidas.includes('level/4/start') && medidas.includes('level/4/complete'), 'measure de nivel faltando: ' + medidas.join(','));
 }

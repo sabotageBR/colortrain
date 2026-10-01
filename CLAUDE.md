@@ -12,18 +12,19 @@ Puzzle de trens por cor para a Poki. Feito **só com HTML + JavaScript**: ES mod
 ## Estrutura
 - `src/jogo/`: lógica pura (`regras.js`, `solucionador.js`, `curva.js`, `gerador.js`, `catalogo.js`). `niveis.js` é **gerado** por `npm run niveis` (150 níveis validados); depois do 150 o gerador com semente roda no navegador.
 - `src/render/`:
-  - `layout.js`: geometria pura;
-  - `pecas.js`: vagão, locomotiva, sinal e mão, com sprites em cache;
-  - `cenario.js`: camada estática;
-  - `cena.js`: objetos visuais, tweens e partículas;
-  - `tema.js`: paleta dos temas dia e noite.
+  - `layout.js`: geometria pura (`LINHA = 0.96`, teto de L 110, `Wu` = largura útil sem a coluna de botões);
+  - `pecas.js`: peças em **quase 3D** (projeção oblíqua `OX = 0.33`, `OY = -0.40`): vagão, locomotiva, sinal e mão, com a parte fixa em sprite e a carga desenhada por quadro;
+  - `fisica.js`: física própria das cargas (sem biblioteca): molas amortecidas, impulsos, folga de engate. **Cada cor é um tipo de carga**: vermelho e azul tanques de vidro com líquido, amarelo areia, laranja laranjas, verde bambu, turquesa contêiner, roxo barris, rosa balões;
+  - `cenario.js`: camada estática na mesma oblíqua (plataforma com espessura e marquise, estação com volume, horizonte em silhueta, marco, placa do pátio, trilhos com relevo);
+  - `cena.js`: objetos visuais, tweens, partículas e a integração da física (aceleração por quadro, onda de compressão no engate, arranque com folga e locomotiva patinando);
+  - `tema.js`: os **10 mundos** (campina, porto, deserto, serra, metropole, festa, inverno, tropico, outono, aurora), 15 níveis cada; `temaPorNivel`.
 - `src/core/`:
   - `poki.js`: cópia do wrapper do carimbador, com fila e prazos;
   - `audio.js`: síntese de som;
   - `armazenamento.js`;
   - `depuracao.js`;
   - `rng.js`.
-- `src/ui/`: estilo do HUD, garagem e fontes Fredoka locais (OFL em `LICENCAS.txt`).
+- `src/ui/`: HUD em pílulas brancas (coluna de botões à direita em toda paisagem, embaixo no retrato; `--acento` e `--placa` vêm do mundo), garagem e fontes Fredoka locais (OFL em `LICENCAS.txt`).
 - `src/main.js` liga tudo.
 - `modelos/`: os 5 protótipos da Fase 1, só como histórico. Não entram na build.
 
@@ -38,6 +39,7 @@ Puzzle de trens por cor para a Poki. Feito **só com HTML + JavaScript**: ES mod
   - a única URL externa é o SDK da Poki.
 - Animações usam **um relógio só** (`performance.now()`), o mesmo da agenda (`setTimeout`). O carimbo do `requestAnimationFrame` andava separado e dessincronizava a partida.
 - Texto quase todo em ícones. EN é o padrão, com PT e ES em `src/i18n/textos.js`.
+- Direção de arte (decidida em 2026-10-01): **peças com física em quase 3D**. O usuário rejeitou reskins e as pranchas de `docs/propostas/` (fora do git); toda proposta visual vai como imagem ou protótipo jogável, nunca como descrição.
 
 ## Poki
 - O SDK entra por uma tag síncrona no `<head>`, com o comentário "Unico script externo permitido pela Poki".
@@ -49,7 +51,8 @@ Puzzle de trens por cor para a Poki. Feito **só com HTML + JavaScript**: ES mod
 
 ## Comandos
 - `npm test`: testes do node (regras, níveis, wrapper, estilo).
-- `npm run servir`: servidor em http://127.0.0.1:5340/. Parâmetros locais: `?nivel=12&tema=noite&auto=300&fixo&semanuncio&garagem`.
+- `npm run servir`: servidor em http://127.0.0.1:5340/. Parâmetros locais: `?nivel=12&tema=festa&auto=300&fixo&semanuncio&garagem` (temas: campina, porto, deserto, serra, metropole, festa, inverno, tropico, outono, aurora).
+- `tools/vitrine-pecas.html`: as 8 cargas em repouso e em movimento, mais a locomotiva (`?tema=`).
 - `npm run sdkcheck`: banco do SDK falso (`tools/sdkcheck.html`) nos cenários normal, recusa, bloqueado, pendente e lsquebrado.
 - `npm run poki`: testes, depois `dist/`, verificação, zip em `dist-poki/color-train-<versao>.zip`, o sdkcheck sobre a build e os prints nos tamanhos de iframe da Poki.
 - Rode um Chrome headless por vez. Use `spawn` assíncrono nas ferramentas, porque o servidor delas roda no mesmo processo.

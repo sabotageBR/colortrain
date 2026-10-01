@@ -9,7 +9,7 @@
 
 import { criarCena } from './render/cena.js';
 import { calcularLayout, trilhoEm } from './render/layout.js';
-import { TEMAS } from './render/tema.js';
+import { TEMAS, temaPorNivel } from './render/tema.js';
 import { PINTURAS } from './render/pecas.js';
 import { bloco, pode, mover, resolvido, jogadas, destinos, paraTexto, completo } from './jogo/regras.js';
 import { definicaoNivel } from './jogo/catalogo.js';
@@ -31,8 +31,6 @@ const T = textos(escolherIdioma());
 
 /** Niveis sem intervalo comercial no comeco da sessao (primeiros minutos limpos). */
 const NIVEIS_SEM_INTERVALO = 5;
-/** Cada mundo (cenario) dura 25 niveis: dia, noite, dia... */
-const NIVEIS_POR_MUNDO = 25;
 
 const VERSAO_SAVE = 1;
 const salvo = armazem.ler('save', null);
@@ -64,7 +62,7 @@ const J = {
   extras: save.extras || 0,
   /** locomotivas que o jogador ja viu liberadas (para o ponto de novidade) */
   vista: save.vista || 1,
-  tema: TEMAS.dia,
+  tema: temaPorNivel(1),
 };
 
 function salvar() {
@@ -91,7 +89,7 @@ const foto = () => J.st.trilhos.map((t) => t.slice());
 
 function temaDoNivel() {
   if (dep.tema && TEMAS[dep.tema]) return TEMAS[dep.tema];
-  return Math.floor((J.nivel - 1) / NIVEIS_POR_MUNDO) % 2 ? TEMAS.noite : TEMAS.dia;
+  return temaPorNivel(J.nivel);
 }
 
 // ------------------------------------------------------------------ layout
@@ -159,7 +157,7 @@ function avisarLocoNova(i) {
   const aviso = $('aviso');
   /** @type {HTMLElement} */ (aviso.querySelector('span')).textContent = T.nova;
   aviso.hidden = false;
-  desenharPrevia(/** @type {HTMLCanvasElement} */ (aviso.querySelector('canvas')), i, false);
+  desenharPrevia(/** @type {HTMLCanvasElement} */ (aviso.querySelector('canvas')), i, false, J.tema);
   setTimeout(() => { aviso.hidden = true; }, 2600);
 }
 
@@ -177,7 +175,10 @@ function iniciarNivel(chegar = true) {
   J.pendentes = 0;
   J.extraUsado = false;
   J.tema = temaDoNivel();
-  document.body.style.background = J.tema.grama;
+  // o HUD segue o mundo: fundo da pagina, cor de acento e placa
+  document.body.style.background = J.tema.placa;
+  document.documentElement.style.setProperty('--acento', J.tema.acento);
+  document.documentElement.style.setProperty('--placa', J.tema.placa);
   pulsarAjuda(false);
   atualizarHud(true);
   cena.definirPintura(PINTURAS[J.loco]);
@@ -343,6 +344,7 @@ async function trilhoExtra() {
 
 const garagem = criarGaragem({
   textos: T,
+  tema: () => J.tema,
   aoEscolher(i) {
     J.loco = i;
     cena.definirPintura(PINTURAS[i]);

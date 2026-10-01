@@ -1,46 +1,53 @@
 <!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><title>Vitrine de pecas</title>
-<style>html,body{margin:0;background:#888}canvas{display:block}</style></head>
+<style>html,body{margin:0;background:#2E3B35}canvas{display:block}</style></head>
 <body><canvas id="c"></canvas>
 <script type="module">
-import { desenharVagao, desenharLoco, desenharSanfona, desenharEngate, desenharSombra, desenharLuzSinal, medidasVagao } from '../src/render/pecas.js';
-import { TEMAS } from '../src/render/tema.js';
-const W = 1200, H = 760, dpr = 2;
+// Vitrine: as 8 cargas em repouso e em movimento, mais a locomotiva.
+//   ?tema=festa  muda o mundo
+import { desenharVagao, desenharLoco, desenharSanfona, desenharEngate, desenharSombra, desenharLuzSinal, PINTURAS } from '../src/render/pecas.js';
+import { TEMAS, temaPorNivel } from '../src/render/tema.js';
+import { criarCarga } from '../src/render/fisica.js';
+const q = new URLSearchParams(location.search);
+const tema = TEMAS[q.get('tema') || ''] || temaPorNivel(1);
+const W = 1400, H = 820, dpr = 2;
 const c = document.getElementById('c');
 c.width = W * dpr; c.height = H * dpr; c.style.width = W + 'px'; c.style.height = H + 'px';
 const ctx = c.getContext('2d');
 ctx.scale(dpr, dpr);
-['dia', 'noite'].forEach((nome, k) => {
-  const tema = TEMAS[nome];
-  const y0 = k * H / 2;
-  ctx.fillStyle = tema.patio; ctx.fillRect(0, y0, W, H / 2);
-  const L = 74, P = L * 1.1;
-  // fileira 1: 8 cores
-  for (let i = 0; i < 8; i++) {
-    const x = 70 + i * P * 1.25, y = y0 + 120;
-    ctx.fillStyle = tema.lastro; ctx.fillRect(x - P * 0.62, y - L * 0.26, P * 1.24, L * 0.4);
-    desenharSombra(ctx, x, y, L, 1, tema);
-    desenharVagao(ctx, x, y, i, L, tema, dpr, { roda: i * 0.4 });
-  }
-  // fileira 2: locomotiva + bloco de 3 azul + 1 vermelho
-  const y = y0 + 300;
-  ctx.fillStyle = tema.lastro; ctx.fillRect(40, y - L * 0.26, 760, L * 0.4);
-  ctx.fillStyle = tema.trilho; ctx.fillRect(40, y - 2, 760, 4);
-  desenharLuzSinal(ctx, 60, y, L, true, tema);
-  const xl = 160;
-  desenharSombra(ctx, xl, y, L * 1.3, 1, tema);
-  desenharLoco(ctx, xl, y, L, tema, dpr, { aceso: true, roda: 0.7 });
-  const xs = [xl + L * 1.32 / 2 + L * 0.1 + P / 2];
-  for (let i = 1; i < 4; i++) xs.push(xs[0] + i * P);
-  const cores = [5, 5, 5, 0];
-  xs.forEach((x, i) => { desenharSombra(ctx, x, y, L, 1, tema); });
-  for (let i = 0; i < 3; i++) {
-    if (cores[i] === cores[i + 1]) desenharSanfona(ctx, xs[i] + L / 2, xs[i + 1] - L / 2, y, L, cores[i], tema);
-    else desenharEngate(ctx, xs[i] + L / 2, xs[i + 1] - L / 2, y, L);
-  }
-  xs.forEach((x, i) => desenharVagao(ctx, x, y, cores[i], L, tema, dpr, {}));
-  // levantado
-  desenharSombra(ctx, 1000, y, L, 0.5, tema);
-  desenharVagao(ctx, 1000, y - L * 0.4, 3, L, tema, dpr, { brilho: 1 });
-});
+ctx.fillStyle = tema.placa; ctx.fillRect(0, 0, W, H);
+const L = 120, P = L * 1.1;
+function trilho(y) {
+  ctx.fillStyle = tema.dormente; ctx.fillRect(0, y - 0.27 * L, W, 0.37 * L);
+  ctx.fillStyle = tema.trilho; ctx.fillRect(0, y - 0.16 * L - 3, W, 3); ctx.fillRect(0, y, W, 3);
+}
+// fileira 1: as 8 cargas em repouso
+let y = 190; trilho(y);
+for (let i = 0; i < 8; i++) { const x = 100 + i * P * 1.38; desenharSombra(ctx, x, y, L, 1, tema); desenharVagao(ctx, x, y, i, L, tema, dpr, { roda: i * 0.4 }); }
+// fileira 2: em movimento (liquido inclinado, areia saltando, baloes tortos, barris rolando)
+y = 420; trilho(y);
+for (let i = 0; i < 8; i++) {
+  const x = 100 + i * P * 1.38; const f = criarCarga(i);
+  f.tilt = 0.42; f.tiltV = 2.5; f.jolt = 0.9; f.bob = 0.02; f.rot = 1.1; f.t = 1.3;
+  desenharSombra(ctx, x, y, L, 1, tema); desenharVagao(ctx, x, y, i, L, tema, dpr, { roda: 1 + i, fis: f });
+}
+// fileira 3: locomotiva + bloco de 3 azul (tanques) + 1 vermelho, e um bloco no ar
+y = 680; trilho(y);
+desenharLuzSinal(ctx, 60, y, L, true, tema);
+const xl = 200;
+desenharSombra(ctx, xl, y, L * 1.3, 1, tema);
+desenharLoco(ctx, xl, y, L, tema, dpr, { aceso: true, roda: 0.7, pintura: PINTURAS[0] });
+const xs = [xl + L * 1.32 / 2 + L * 0.1 + P / 2];
+for (let i = 1; i < 4; i++) xs.push(xs[0] + i * P);
+const cores = [5, 5, 5, 0];
+xs.forEach((x) => desenharSombra(ctx, x, y, L, 1, tema));
+for (let i = 0; i < 3; i++) {
+  if (cores[i] === cores[i + 1]) desenharSanfona(ctx, xs[i] + L / 2, xs[i + 1] - L / 2, y, L, cores[i], tema);
+  else desenharEngate(ctx, xs[i] + L / 2, xs[i + 1] - L / 2, y, L);
+}
+xs.forEach((x, i) => desenharVagao(ctx, x, y, cores[i], L, tema, dpr, { roda: i }));
+const fa = criarCarga(2); fa.tilt = -0.3;
+desenharSombra(ctx, 1150, y, L, 0.5, tema);
+desenharVagao(ctx, 1150, y - L * 0.9, 2, L, tema, dpr, { brilho: 1, fis: fa, noAr: true });
+document.title = 'pronto';
 </script></body></html>
