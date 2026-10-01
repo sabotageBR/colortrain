@@ -254,20 +254,26 @@ function rodas(ctx, x, y, L, xs, r, ang, tema) {
   }
 }
 
-/** Sombra macia no chao. */
+/** Sombra macia no chao (sprite em cache por largura e tema). */
 export function desenharSombra(ctx, x, y, w, alfa, tema) {
-  ctx.save();
-  ctx.translate(x, y + w * 0.02);
-  ctx.scale(1, 0.18);
   const r = w * 0.62;
-  const gr = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r);
-  gr.addColorStop(0, tema.sombra);
-  gr.addColorStop(1, 'rgba(0,0,0,0)');
+  const chave = `s|${Math.round(r)}|${tema.nome}`;
+  let spr = cache.get(chave);
+  if (!spr) {
+    spr = document.createElement('canvas');
+    spr.width = Math.ceil(r * 2);
+    spr.height = Math.ceil(r * 2);
+    const g = /** @type {CanvasRenderingContext2D} */ (spr.getContext('2d'));
+    const gr = g.createRadialGradient(r, r, r * 0.2, r, r, r);
+    gr.addColorStop(0, tema.sombra);
+    gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, r * 2, r * 2);
+    cache.set(chave, spr);
+  }
+  ctx.save();
   ctx.globalAlpha = alfa;
-  ctx.fillStyle = gr;
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.drawImage(spr, x - r, y + w * 0.02 - r * 0.18, r * 2, r * 0.36);
   ctx.restore();
 }
 

@@ -143,6 +143,13 @@ function atualizarHud(pop = false) {
   $('bGaragem').classList.toggle('novidade', n > J.vista);
 }
 
+/** Vibracao curta (celulares que suportam). @param {number|number[]} ms */
+function vibrar(ms) {
+  try {
+    if (navigator.vibrate) navigator.vibrate(ms);
+  } catch { /* ignora */ }
+}
+
 /** @param {boolean} sim */
 function pulsarAjuda(sim) {
   for (const id of ['bDesfazer', 'bRecomecar', 'bExtra']) $(id).classList.toggle('pulsar', sim && !(id === 'bExtra' && J.extraUsado));
@@ -209,9 +216,17 @@ function executar(a, b) {
   audio.voar();
   depois(ms, () => {
     audio.engate();
+    vibrar(12);
     cena.engatou(b);
     if (ev.completou) completar(b);
     else checarFim();
+    // nos niveis de ensino, a mao volta se o jogador ficar parado
+    if (J.nivel <= 2) {
+      const n = J.hist.length;
+      depois(2500, () => {
+        if (J.fase === 'jogando' && !J.mao && J.hist.length === n && !J.toque && J.sel === null) mostrarMao();
+      });
+    }
   });
 }
 
@@ -223,6 +238,7 @@ function completar(tr) {
     J.pendentes--;
     audio.engate();
     audio.apito();
+    vibrar([18, 60, 28]);
     cena.comemorar(tr);
     checarFim();
   });

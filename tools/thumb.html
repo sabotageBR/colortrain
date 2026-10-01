@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>thumb</title>
+<style>html,body{margin:0;overflow:hidden;background:#000}canvas{display:block;width:100vw;height:100vh}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+// Thumb da Poki desenhada com as pecas do proprio jogo.
+// Regras (developers.poki.com/guide/game-thumbnail, anotadas no planet.io):
+// 1:1, sangrada, sem texto, um objeto principal, sugerir movimento,
+// contraste com o fundo #83FFE7 do site. ?opcao=a|b|c  (tamanho = janela)
+import { desenharVagao, desenharLoco, desenharSanfona, desenharSombra, pontaChamine, PINTURAS, caminhoRet } from '../src/render/pecas.js';
+import { TEMAS, misturar } from '../src/render/tema.js';
+import { criarRng } from '../src/core/rng.js';
+
+const q = new URLSearchParams(location.search);
+const opcao = q.get('opcao') || 'b';
+const S = Math.max(64, parseInt(q.get('s') || '1256', 10));
+const cv = document.getElementById('c');
+cv.width = S; cv.height = S;
+const ctx = cv.getContext('2d');
+const r = criarRng(42);
+const CEUS = {
+  a: { ceu: ['#4FA9EE', '#9AD6FA', '#DDF2FB'], morro: ['#9ED39A', '#74BE6C'], chao: '#6FB85B', tema: TEMAS.dia, sol: 'rgba(255,250,215,0.95)', predio: '#F3E7D3', telhado: '#C9533B', janela: '#4F72A8' },
+  b: { ceu: ['#3B1E6E', '#C2457A', '#FF9E5E'], morro: ['#7A3D78', '#5B2C66'], chao: '#3E2A5C', tema: TEMAS.dia, sol: 'rgba(255,214,120,0.95)', predio: '#5A3474', telhado: '#2C1745', janela: '#FFD36B' },
+  c: { ceu: ['#090B2A', '#22195A', '#4A2C7A'], morro: ['#261F55', '#1A163F'], chao: '#161D3A', tema: TEMAS.noite, sol: 'rgba(255,244,214,0.95)', predio: '#3E3870', telhado: '#5A2471', janela: '#FFD36B' },
+};
+const K = CEUS[opcao];
+
+// ---- fundo (desfocado: sensacao de velocidade)
+const fundo = document.createElement('canvas');
+fundo.width = S; fundo.height = S;
+const g = fundo.getContext('2d');
+let gr = g.createLinearGradient(0, 0, 0, S * 0.62);
+gr.addColorStop(0, K.ceu[0]); gr.addColorStop(0.55, K.ceu[1]); gr.addColorStop(1, K.ceu[2]);
+g.fillStyle = gr; g.fillRect(0, 0, S, S);
+// sol ou lua
+const sx = S * 0.78, sy = S * 0.3, sr = S * 0.11;
+const halo = g.createRadialGradient(sx, sy, sr * 0.5, sx, sy, sr * 3.4);
+halo.addColorStop(0, K.sol.replace('0.95', '0.55')); halo.addColorStop(1, 'rgba(255,240,200,0)');
+g.fillStyle = halo; g.fillRect(0, 0, S, S);
+g.fillStyle = K.sol; g.beginPath(); g.arc(sx, sy, sr, 0, Math.PI * 2); g.fill();
+if (opcao === 'c') {
+  for (let i = 0; i < 160; i++) { g.globalAlpha = 0.3 + r() * 0.7; g.fillStyle = '#fff'; const s = r() < 0.1 ? 3 : 1.6; g.fillRect(r() * S, r() * S * 0.55, s, s); }
+  g.globalAlpha = 1;
+}
+if (opcao === 'a') {
+  g.fillStyle = '#fff';
+  for (const [x, y, s] of [[0.18, 0.16, 0.07], [0.5, 0.1, 0.05], [0.9, 0.5, 0.06]]) {
+    for (const [dx, dy, rr] of [[-0.9, 0.1, 0.55], [-0.3, -0.25, 0.75], [0.45, -0.05, 0.62], [1, 0.2, 0.45]]) { g.beginPath(); g.arc((x + dx * s) * S, (y + dy * s) * S, rr * s * S, 0, Math.PI * 2); g.fill(); }
+  }
+}
+// estacao ao fundo (silhueta com relogio)
+const by = S * 0.56;
+g.fillStyle = K.morro[0];
+g.beginPath(); g.moveTo(0, by);
+for (let x = 0; x <= S; x += 8) g.lineTo(x, by - S * (0.1 + 0.05 * Math.sin(x / S * 7 + 1)));
+g.lineTo(S, by); g.closePath(); g.fill();
+const ex0 = S * 0.42, ex1 = S * 1.05, ey = by + S * 0.02, eh = S * 0.13;
+g.fillStyle = K.predio; g.fillRect(ex0, ey - eh, ex1 - ex0, eh);
+g.fillStyle = K.telhado;
+g.beginPath(); g.moveTo(ex0 - S * 0.02, ey - eh); g.lineTo(ex0 + S * 0.03, ey - eh - S * 0.05); g.lineTo(ex1, ey - eh - S * 0.05); g.lineTo(ex1, ey - eh); g.closePath(); g.fill();
+const tx = S * 0.66, tw = S * 0.08;
+g.fillStyle = K.predio; g.fillRect(tx - tw / 2, ey - eh - S * 0.13, tw, S * 0.13);
+g.fillStyle = K.telhado;
+g.beginPath(); g.moveTo(tx - tw * 0.65, ey - eh - S * 0.13); g.lineTo(tx, ey - eh - S * 0.19); g.lineTo(tx + tw * 0.65, ey - eh - S * 0.13); g.closePath(); g.fill();
+g.fillStyle = '#FFF6E0'; g.beginPath(); g.arc(tx, ey - eh - S * 0.085, tw * 0.3, 0, Math.PI * 2); g.fill();
+g.fillStyle = K.janela;
+for (let i = 0; i < 6; i++) { const jx = ex0 + S * 0.04 + i * S * 0.1; if (Math.abs(jx - tx) < tw) continue; g.fillRect(jx, ey - eh * 0.75, S * 0.035, eh * 0.45); }
+g.fillStyle = K.morro[1];
+g.beginPath(); g.moveTo(0, S); g.lineTo(0, by + S * 0.02);
+for (let x = 0; x <= S; x += 8) g.lineTo(x, by + S * 0.02 - S * 0.03 * Math.sin(x / S * 4 + 2));
+g.lineTo(S, S); g.closePath(); g.fill();
+g.fillStyle = K.chao; g.fillRect(0, S * 0.62, S, S);
+ctx.filter = 'blur(' + Math.round(S * 0.004) + 'px)';
+ctx.drawImage(fundo, 0, 0);
+ctx.filter = 'none';
+
+// ---- linhas de velocidade
+ctx.strokeStyle = opcao === 'a' ? 'rgba(255,255,255,0.55)' : 'rgba(255,230,200,0.35)';
+ctx.lineCap = 'round';
+for (let i = 0; i < 16; i++) {
+  const y = S * (0.2 + r() * 0.6), x = S * (0.35 + r() * 0.7), w = S * (0.08 + r() * 0.2);
+  ctx.lineWidth = S * (0.003 + r() * 0.004);
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y - w * 0.21); ctx.stroke();
+}
+
+// ---- o trem, em diagonal, saindo da tela pela direita
+const ang = -0.33;
+const L = S * 0.225;
+const P = L * 1.1;
+const x0 = S * 0.21, y0 = S * 0.83;
+const tema = K.tema;
+const cores = [0, 0, 5, 5, 2, 2, 3];
+ctx.save();
+ctx.translate(x0, y0);
+ctx.rotate(ang);
+// trilhos e dormentes
+ctx.fillStyle = 'rgba(0,0,0,0.22)';
+ctx.fillRect(-S, -L * 0.06, S * 3, L * 0.32);
+for (let x = -S; x < S * 2; x += L * 0.34) { ctx.fillStyle = '#6B4529'; ctx.fillRect(x, -L * 0.2, L * 0.11, L * 0.3); ctx.fillStyle = '#87593A'; ctx.fillRect(x, -L * 0.2, L * 0.11, L * 0.06); }
+for (const [yy, lw] of [[-L * 0.16, 0.035], [0, 0.05]]) { ctx.fillStyle = '#4E5563'; ctx.fillRect(-S, yy - L * lw / 2, S * 3, L * lw); ctx.fillStyle = '#E8ECF2'; ctx.fillRect(-S, yy - L * lw / 2, S * 3, L * 0.013); }
+const xs = [];
+let x = 1.32 * L / 2 + L * 0.1 + P / 2;
+for (let i = 0; i < cores.length; i++) { xs.push(x); x += P; }
+desenharSombra(ctx, 0, 0, L * 1.3, 1, tema);
+xs.forEach((xx) => desenharSombra(ctx, xx, 0, L, 1, tema));
+for (let i = 0; i + 1 < cores.length; i++) if (cores[i] === cores[i + 1]) desenharSanfona(ctx, xs[i] + L / 2, xs[i + 1] - L / 2, 0, L, cores[i], tema);
+xs.forEach((xx, i) => desenharVagao(ctx, xx, 0, cores[i], L, tema, 1, { roda: 0.4 + i }));
+desenharLoco(ctx, 0, 0, L, tema, 1, { aceso: true, roda: 0.9, pintura: PINTURAS[0] });
+const pc = pontaChamine(0, 0, L);
+ctx.restore();
+
+// ---- fumaca: rastro grosso subindo para tras
+const cx = x0 + Math.cos(ang) * pc.x - Math.sin(ang) * pc.y;
+const cy = y0 + Math.sin(ang) * pc.x + Math.cos(ang) * pc.y;
+for (let i = 9; i >= 0; i--) {
+  const t = i / 9;
+  const px = cx + t * S * 0.5, py = cy - t * S * 0.3 - Math.sin(t * 5) * S * 0.02;
+  const rr = S * (0.03 + t * 0.06);
+  const gg = ctx.createRadialGradient(px - rr * 0.3, py - rr * 0.3, rr * 0.1, px, py, rr);
+  const a = 0.9 - t * 0.55;
+  gg.addColorStop(0, `rgba(255,255,255,${a})`); gg.addColorStop(0.7, `rgba(255,255,255,${a * 0.6})`); gg.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(px, py, rr, 0, Math.PI * 2); ctx.fill();
+}
+// faiscas/estrelas de festa
+const corEst = ['#F5C933', '#EF58AF', '#3A86F2', '#4FBA4C', '#E9434F'];
+for (let i = 0; i < 14; i++) {
+  const px = S * (0.05 + r() * 0.9), py = S * (0.05 + r() * 0.4), rr = S * (0.008 + r() * 0.012);
+  ctx.save(); ctx.translate(px, py); ctx.rotate(r() * 6); ctx.fillStyle = corEst[i % corEst.length];
+  ctx.beginPath(); for (let k = 0; k < 10; k++) { const a2 = -Math.PI / 2 + k * Math.PI / 5; const q = k % 2 ? rr * 0.5 : rr * 1.2; ctx.lineTo(Math.cos(a2) * q, Math.sin(a2) * q); } ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+// vinheta suave para segurar o olhar no trem
+const vg = ctx.createRadialGradient(S * 0.45, S * 0.6, S * 0.3, S * 0.5, S * 0.55, S * 0.85);
+vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.28)');
+ctx.fillStyle = vg; ctx.fillRect(0, 0, S, S);
+document.title = 'pronto';
+void caminhoRet; void misturar;
+</script></body></html>
