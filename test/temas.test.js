@@ -1,7 +1,7 @@
 // Os dez mundos: ordem da campanha, campos iguais e contraste das pecas.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TEMAS, ORDEM_MUNDOS, NIVEIS_POR_MUNDO, temaPorNivel, CORES, contraste } from '../src/render/tema.js';
+import { TEMAS, ORDEM_MUNDOS, NIVEIS_POR_MUNDO, temaPorNivel, CORES, distanciaCor } from '../src/render/tema.js';
 
 test('a campanha percorre os dez mundos, quinze niveis cada', () => {
   assert.deepEqual(ORDEM_MUNDOS, ['campina', 'porto', 'deserto', 'serra', 'metropole', 'festa', 'inverno', 'tropico', 'outono', 'aurora']);
@@ -17,11 +17,11 @@ test('todos os mundos tem o mesmo conjunto de campos', () => {
   for (const t of Object.values(TEMAS)) assert.deepEqual(Object.keys(t).sort(), base, t.nome);
 });
 
-test('as oito cores de vagao contrastam com a placa de cada mundo', () => {
+test('as oito cores de vagao se distinguem do chao de cada mundo', () => {
   for (const t of Object.values(TEMAS)) {
     for (const c of CORES) {
-      const k = contraste(c.base, t.placa);
-      assert.ok(k >= 2, `${t.nome} x ${c.base}: ${k.toFixed(2)}`);
+      const d = distanciaCor(c.base, t.placa);
+      assert.ok(d >= 25, `${t.nome} x ${c.base}: dE ${d.toFixed(1)}`);
     }
   }
 });

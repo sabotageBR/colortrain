@@ -58,18 +58,70 @@ export function desenharCenario(lay, tema, dpr) {
     g.lineTo(-L, yb);
     g.closePath();
   };
+  if (alt < 60) postes(g, lay, Wu, yBasePredio, tema, L);
+  // espessura da laje: face da frente escura, com sombra no chao
+  const esp = yFim < H ? Math.min(0.3 * L, H - yFim) : 0;
+  if (esp > 0) {
+    degrade(g, 0, yFim + esp, Math.min(W, xPlacaFim + 0.2 * L), 0.16 * L, 'rgba(0,0,0,0.28)');
+    g.save();
+    g.translate(0, esp);
+    g.fillStyle = misturar(tema.placa, '#000000', 0.45);
+    placa();
+    g.fill();
+    g.restore();
+  }
   g.fillStyle = tema.placa;
   placa();
   g.fill();
   g.save();
   placa();
   g.clip();
-  degrade(g, 0, yPlaca, W, 0.12 * L, 'rgba(0,0,0,0.3)');
+  // profundidade: o fundo da laje fica mais claro, a frente mais escura
+  const gp = g.createLinearGradient(0, yPlaca, 0, Math.max(yPlaca + 1, yFim));
+  gp.addColorStop(0, 'rgba(255,255,255,0.14)');
+  gp.addColorStop(1, 'rgba(0,0,0,0.12)');
+  g.fillStyle = gp;
+  g.fillRect(0, yPlaca, W, yFim - yPlaca);
+  brita(g, W, Math.min(W, xPlacaFim), yPlaca, yFim, r, L);
+  degrade(g, 0, yPlaca, W, 0.14 * L, 'rgba(0,0,0,0.32)');
   g.restore();
-  if (yFim < H) degrade(g, 0, yFim, Math.min(W, xPlacaFim), 0.14 * L, 'rgba(0,0,0,0.26)');
   if (xPlacaFim < Wu - 1.2 * L) vegetacao(g, xPlacaFim, Wu, yPlaca, Math.min(H, yFim), tema, L, r);
-  lay.trilhos.forEach((t) => trilho(g, lay, t, tema));
+  lay.trilhos.forEach((t) => trilho(g, lay, t, tema, r));
   return c;
+}
+
+/** Pontinhos de brita sobre a laje, mais densos na frente. */
+function brita(g, W, x1, y0, y1, r, L) {
+  const n = Math.round(((x1 + L) * (y1 - y0)) / 520);
+  for (let i = 0; i < n; i++) {
+    const y = y0 + r() * (y1 - y0);
+    g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.18)';
+    const s = Math.max(1, L * (0.012 + r() * 0.014));
+    g.fillRect(r() * (x1 + L) - L, y, s, s * 0.7);
+  }
+}
+
+/** Postes de luz na plataforma (quando nao ha marquise). */
+function postes(g, lay, Wu, yBase, tema, L) {
+  const h = Math.min(0.8 * L, Math.max(10, yBase - 24));
+  const passo = 4 * L;
+  const poste = misturar(tema.plataforma, '#000000', 0.55);
+  for (let x = lay.xIni + 0.5 * L; x < Math.min(lay.xFim + 0.6 * L, Wu); x += passo) {
+    if (Math.abs(x - Wu / 2) < 1.3 * L) continue; // fora do eixo da placa de nivel
+    g.fillStyle = 'rgba(0,0,0,0.15)';
+    g.fillRect(x, yBase - 2, 0.3 * L, 3);
+    g.fillStyle = poste;
+    g.fillRect(x - 0.015 * L, yBase - h, 0.03 * L, h);
+    caixa3d(g, x - 0.09 * L, x + 0.09 * L, yBase - h - 0.07 * L, yBase - h, 0.12 * L, { frente: poste, topo: misturar(poste, '#FFFFFF', 0.35), lado: misturar(poste, '#000000', 0.3) });
+    if (tema.luzes) {
+      g.fillStyle = 'rgba(255,220,140,0.18)';
+      g.beginPath();
+      g.arc(x, yBase - h + 0.02 * L, 0.5 * L, 0, Math.PI * 2);
+      g.fill();
+    }
+    g.fillStyle = tema.luzes ? '#FFE7A0' : '#FFF8E0';
+    g.fillRect(x - 0.07 * L, yBase - h, 0.14 * L, Math.max(2, 0.03 * L));
+  }
 }
 
 /** Faixa de sombra que some para baixo. */
@@ -208,7 +260,10 @@ function horizonte(g, W, yChao, tema, L, r) {
 
 /** Uma camada de morros: soma de senos. */
 function morros(g, W, yChao, cor, alt, fase, freq) {
-  g.fillStyle = cor;
+  const gr = g.createLinearGradient(0, yChao - alt, 0, yChao);
+  gr.addColorStop(0, misturar(cor, '#FFFFFF', 0.22));
+  gr.addColorStop(1, cor);
+  g.fillStyle = gr;
   g.beginPath();
   g.moveTo(0, yChao + 2);
   for (let x = 0; x <= W; x += 6) {
@@ -237,9 +292,9 @@ function skyline(g, W, yChao, cor, L, r, hMax, wVar, luzes, tema) {
   while (x < W) {
     const w = L * (0.35 + r() * wVar);
     const h = L * (0.4 + r() * hMax);
-    g.fillStyle = cor;
-    g.fillRect(x, yChao - h, w + 1, h + 2);
+    caixa3d(g, x, x + w + 1, yChao - h, yChao + 2, 0.22 * L, { frente: cor, topo: misturar(cor, '#FFFFFF', 0.3), lado: misturar(cor, '#000000', 0.28) });
     if (r() < 0.25) g.fillRect(x + w / 2 - 1, yChao - h - L * 0.3, 2, L * 0.3);
+    g.fillStyle = cor;
     if (luzes) {
       g.fillStyle = tema.janela;
       for (let yy = yChao - h + L * 0.1; yy < yChao - L * 0.1; yy += L * 0.16) {
@@ -257,16 +312,24 @@ function montanhas(g, W, yChao, cor, alt, r, fase, tema) {
   const passo = alt * 0.9;
   const picos = [];
   for (let x = -passo; x <= W + passo; x += passo * (0.7 + r() * 0.5)) picos.push({ x, h: alt * (0.55 + r() * 0.45) });
-  g.fillStyle = cor;
-  g.beginPath();
-  g.moveTo(-passo, yChao + 2);
+  const sombra = misturar(cor, '#000000', 0.22);
+  const luz = misturar(cor, '#FFFFFF', 0.12);
   for (const p of picos) {
-    g.lineTo(p.x - passo * 0.55, yChao);
+    g.fillStyle = luz;
+    g.beginPath();
+    g.moveTo(p.x - passo * 0.62, yChao + 2);
     g.lineTo(p.x, yChao - p.h);
+    g.lineTo(p.x, yChao + 2);
+    g.closePath();
+    g.fill();
+    g.fillStyle = sombra;
+    g.beginPath();
+    g.moveTo(p.x, yChao + 2);
+    g.lineTo(p.x, yChao - p.h);
+    g.lineTo(p.x + passo * 0.62, yChao + 2);
+    g.closePath();
+    g.fill();
   }
-  g.lineTo(W + passo, yChao + 2);
-  g.closePath();
-  g.fill();
   if (fase < 1 && !tema.noite) {
     g.fillStyle = misturar(cor, '#FFFFFF', 0.55);
     for (const p of picos) {
@@ -349,22 +412,34 @@ function coqueiros(g, W, yChao, cor, L, r) {
 
 /** Mesas do deserto: topos chatos. */
 function mesas(g, W, yChao, cor, alt, r, fase) {
-  g.fillStyle = cor;
-  g.beginPath();
-  g.moveTo(-10, yChao + 2);
   let x = -L0(alt) + fase * alt;
   while (x < W + alt) {
     const w = alt * (0.6 + r() * 1.2);
     const h = alt * (0.45 + r() * 0.55);
-    g.lineTo(x, yChao);
+    const prof = alt * 0.25;
+    g.fillStyle = misturar(cor, '#000000', 0.3);
+    g.beginPath();
+    g.moveTo(x + w * 0.82, yChao - h);
+    g.lineTo(x + w * 0.82 + OX * prof, yChao - h + OY * prof);
+    g.lineTo(x + w + OX * prof, yChao + OY * prof);
+    g.lineTo(x + w, yChao + 2);
+    g.closePath();
+    g.fill();
+    g.fillStyle = misturar(cor, '#FFFFFF', 0.25);
+    topo3d(g, x + w * 0.18, x + w * 0.82, yChao - h, prof);
+    g.fill();
+    g.fillStyle = cor;
+    g.beginPath();
+    g.moveTo(x, yChao + 2);
     g.lineTo(x + w * 0.18, yChao - h);
     g.lineTo(x + w * 0.82, yChao - h);
-    g.lineTo(x + w, yChao);
+    g.lineTo(x + w, yChao + 2);
+    g.closePath();
+    g.fill();
     x += w + alt * (0.3 + r() * 0.8);
   }
-  g.lineTo(W + 10, yChao + 2);
-  g.closePath();
-  g.fill();
+  g.fillStyle = cor;
+  g.fillRect(0, yChao, W, 3);
 }
 const L0 = (alt) => alt * 0.5;
 
@@ -374,10 +449,15 @@ function floresta(g, W, yChao, cor, s, r) {
   let x = -s;
   while (x < W + s) {
     const rr = s * (0.5 + r() * 0.5);
+    g.fillStyle = cor;
     g.beginPath();
     g.arc(x, yChao - rr * 0.9, rr, 0, Math.PI * 2);
     g.fill();
     g.fillRect(x - rr, yChao - rr * 0.9, rr * 2, rr * 0.95);
+    g.fillStyle = misturar(cor, '#FFFFFF', 0.18);
+    g.beginPath();
+    g.arc(x - rr * 0.3, yChao - rr * 1.15, rr * 0.45, 0, Math.PI * 2);
+    g.fill();
     x += rr * (1.2 + r() * 0.6);
   }
 }
@@ -393,6 +473,15 @@ function marco(g, Wu, yChao, tema, L) {
   switch (tema.marco) {
     case 'moinho': {
       trapezio(g, x, yChao, s * 0.36, s * 0.2, s * 0.7);
+      g.fillStyle = misturar(cor, '#000000', 0.28);
+      g.beginPath();
+      g.moveTo(x, yChao + 1);
+      g.lineTo(x, yChao - s * 0.7);
+      g.lineTo(x + s * 0.1, yChao - s * 0.7);
+      g.lineTo(x + s * 0.18, yChao + 1);
+      g.closePath();
+      g.fill();
+      g.fillStyle = cor;
       g.beginPath();
       g.arc(x, yChao - s * 0.72, s * 0.14, 0, Math.PI * 2);
       g.fill();
@@ -443,6 +532,15 @@ function marco(g, Wu, yChao, tema, L) {
     }
     case 'farol': {
       trapezio(g, x, yChao, s * 0.34, s * 0.22, s * 1.1);
+      g.fillStyle = misturar(cor, '#FFFFFF', 0.18);
+      g.beginPath();
+      g.moveTo(x - s * 0.17, yChao + 1);
+      g.lineTo(x - s * 0.11, yChao - s * 1.1);
+      g.lineTo(x - s * 0.02, yChao - s * 1.1);
+      g.lineTo(x - s * 0.04, yChao + 1);
+      g.closePath();
+      g.fill();
+      g.fillStyle = cor;
       g.fillRect(x - s * 0.17, yChao - s * 1.22, s * 0.34, s * 0.12);
       g.fillRect(x - s * 0.12, yChao - s * 1.34, s * 0.24, s * 0.12);
       g.beginPath();
@@ -469,6 +567,10 @@ function marco(g, Wu, yChao, tema, L) {
       g.stroke();
       caminhoRet(g, x - s * 0.3, yChao - s * 1.25, s * 0.6, s * 0.5, s * 0.06);
       g.fill();
+      g.fillStyle = misturar(cor, '#FFFFFF', 0.18);
+      caminhoRet(g, x - s * 0.3, yChao - s * 1.25, s * 0.22, s * 0.5, s * 0.06);
+      g.fill();
+      g.fillStyle = cor;
       g.beginPath();
       g.moveTo(x - s * 0.34, yChao - s * 1.25);
       g.lineTo(x, yChao - s * 1.48);
@@ -498,13 +600,22 @@ function marco(g, Wu, yChao, tema, L) {
     case 'abeto': {
       for (let k = 0; k < 3; k++) {
         const w = s * (0.5 - k * 0.1), y = yChao - s * (0.35 + k * 0.38);
+        g.fillStyle = misturar(cor, '#FFFFFF', 0.15);
         g.beginPath();
         g.moveTo(x, y - s * 0.5);
-        g.lineTo(x + w, y);
+        g.lineTo(x, y);
         g.lineTo(x - w, y);
         g.closePath();
         g.fill();
+        g.fillStyle = misturar(cor, '#000000', 0.22);
+        g.beginPath();
+        g.moveTo(x, y - s * 0.5);
+        g.lineTo(x + w, y);
+        g.lineTo(x, y);
+        g.closePath();
+        g.fill();
       }
+      g.fillStyle = cor;
       g.fillRect(x - s * 0.05, yChao - s * 0.3, s * 0.1, s * 0.31);
       break;
     }
@@ -514,6 +625,10 @@ function marco(g, Wu, yChao, tema, L) {
     }
     case 'celeiro': {
       g.fillRect(x - s * 0.5, yChao - s * 0.6, s, s * 0.61);
+      g.fillStyle = misturar(cor, '#000000', 0.3);
+      lado3d(g, x + s * 0.5, yChao - s * 0.6, yChao + 1, s * 0.4);
+      g.fill();
+      g.fillStyle = cor;
       g.beginPath();
       g.moveTo(x - s * 0.56, yChao - s * 0.6);
       g.lineTo(x - s * 0.36, yChao - s * 0.98);
@@ -532,6 +647,13 @@ function marco(g, Wu, yChao, tema, L) {
       g.arc(x, yChao - s * 0.5, s * 0.4, Math.PI, 0);
       g.closePath();
       g.fill();
+      g.fillStyle = misturar(cor, '#000000', 0.28);
+      g.beginPath();
+      g.arc(x, yChao - s * 0.5, s * 0.4, -Math.PI * 0.45, 0);
+      g.lineTo(x, yChao - s * 0.5);
+      g.closePath();
+      g.fill();
+      g.fillRect(x + s * 0.2, yChao - s * 0.5, s * 0.2, s * 0.51);
       g.fillStyle = tema.acento;
       g.fillRect(x - s * 0.04, yChao - s * 0.9, s * 0.08, s * 0.4);
       break;
@@ -885,12 +1007,12 @@ function vegetacao(g, x0, x1, y0, y1, tema, L, r) {
  * com face de cima clara, trilhos com topo claro e lateral escura. Sai pela
  * esquerda em forca total (caminho da partida) e termina no para-choque.
  */
-function trilho(g, lay, t, tema) {
+function trilho(g, lay, t, tema, r) {
   const { L } = lay;
   const y = t.yb;
   const x1 = t.xFim;
   if (tema.guia) {
-    g.fillStyle = tema.dormente;
+    g.fillStyle = tema.lastro;
     caminhoRet(g, -L, y - 0.14 * L, x1 - 0.1 * L + L, 0.22 * L, 0.06 * L);
     g.fill();
     g.strokeStyle = tema.acento;
@@ -909,14 +1031,28 @@ function trilho(g, lay, t, tema) {
     g.lineTo(x1 - 0.22 * L, y - 0.03 * L);
     g.stroke();
   } else {
-    g.fillStyle = tema.dormente;
+    // leito de brita com volume: borda escura embaixo, face de cima mais clara
+    g.fillStyle = misturar(tema.lastro, '#000000', 0.3);
+    caminhoRet(g, -L, y - 0.22 * L, x1 - 0.1 * L + L, 0.38 * L, 0.06 * L);
+    g.fill();
+    g.fillStyle = tema.lastro;
     caminhoRet(g, -L, y - 0.27 * L, x1 - 0.1 * L + L, 0.37 * L, 0.06 * L);
     g.fill();
+    g.save();
+    caminhoRet(g, -L, y - 0.27 * L, x1 - 0.1 * L + L, 0.37 * L, 0.06 * L);
+    g.clip();
+    for (let i = 0; i < Math.round((x1 + L) / (L * 0.06)); i++) {
+      g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.2)';
+      const sz = Math.max(1, L * (0.012 + r() * 0.012));
+      g.fillRect(r() * (x1 + L) - L, y - 0.27 * L + r() * 0.37 * L, sz, sz);
+    }
+    g.restore();
     const dw = 0.08 * L;
     const claro = misturar(tema.dormente, '#ffffff', 0.12);
-    const escuro = misturar(tema.dormente, '#000000', 0.25);
+    const escuro = misturar(tema.dormente, '#000000', 0.35);
     for (let x = ((x1 - 0.3 * L) % (0.33 * L)) - 0.33 * L; x < x1 - 0.25 * L; x += 0.33 * L) {
       g.fillStyle = escuro;
+      g.fillRect(x, y + 0.05 * L, dw + Math.max(1, 0.015 * L), Math.max(1, 0.03 * L));
       g.fillRect(x + dw, y - 0.22 * L, Math.max(1, 0.015 * L), 0.27 * L);
       g.fillStyle = claro;
       g.fillRect(x, y - 0.22 * L, dw, 0.27 * L);

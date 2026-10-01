@@ -33,7 +33,7 @@ export function desenharPrevia(cv, i, bloqueada, tema = temaPorNivel(1)) {
   const L = Math.min(w / 1.7, h / 1.05);
   const y = h - 8;
   // trilho flat, como no patio (o fundo escuro vem do CSS)
-  g.fillStyle = tema.dormente;
+  g.fillStyle = tema.lastro;
   caminhoRet(g, -4, y - L * 0.27, w + 8, L * 0.37, 4);
   g.fill();
   g.fillStyle = tema.trilho;

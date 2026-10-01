@@ -27,6 +27,23 @@ export function contraste(a, b) {
   const la = luminancia(a), lb = luminancia(b);
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
+/** Cor hex em CIE Lab (D65). @param {string} h */
+function lab(h) {
+  const [r, g, b] = rgb(h).map((v) => {
+    const s = v / 255;
+    return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const x = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+  const y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+  const z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+/** Distancia perceptual entre duas cores hex (CIE76; acima de ~25 le-se como cor diferente). */
+export function distanciaCor(a, b) {
+  const p = lab(a), q = lab(b);
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+}
 
 // vermelho, laranja, amarelo, verde, turquesa, azul, roxo, rosa
 const BASES = ['#E9434F', '#F8902C', '#F5C933', '#4FBA4C', '#1FBFB0', '#3A86F2', '#9657E0', '#EF58AF'];
@@ -58,8 +75,9 @@ export const CORES = BASES.map((base) => ({
  * @property {string} janela        janelas da estacao e do skyline
  * @property {string} plataforma
  * @property {string} faixa         linha de seguranca da plataforma
- * @property {string} placa         placa escura do patio (fundo das pecas)
- * @property {string} dormente      faixa de dormentes, um tom acima da placa
+ * @property {string} placa         chao do patio (fundo das pecas)
+ * @property {string} lastro        leito de brita de cada trilho, um tom abaixo do chao
+ * @property {string} dormente      madeira dos dormentes
  * @property {string} trilho
  * @property {string} chao          chao chapado abaixo da placa
  * @property {string} acento        HUD, selo de video, realce
@@ -95,8 +113,9 @@ function mundo(d) {
     plataforma: d.plataforma || (noite ? '#8F89B4' : '#E8E1D1'),
     faixa: d.faixa || d.acento,
     placa: d.placa,
-    dormente: d.dormente || misturar(d.placa, '#ffffff', 0.1),
-    trilho: d.trilho || misturar(d.placa, '#ffffff', 0.52),
+    lastro: d.lastro || misturar(d.placa, '#000000', 0.16),
+    dormente: d.dormente || (noite ? '#4E4048' : '#7E5F43'),
+    trilho: d.trilho || (noite ? '#B4BCCC' : '#ECE8E0'),
     chao: d.chao || misturar(d.placa, '#ffffff', 0.2),
     acento: d.acento,
     janelaVagao: d.janelaVagao || (noite ? 'rgba(255,226,160,0.78)' : 'rgba(255,255,255,0.4)'),
@@ -120,7 +139,7 @@ export const TEMAS = {
     telhado: '#D9553F',
     janela: '#7FB8E6',
     plataforma: '#E8E1D1',
-    placa: '#2E3B35',
+    placa: '#A39A88',
     chao: '#79B86A',
     acento: '#FF6B57',
   }),
@@ -136,7 +155,7 @@ export const TEMAS = {
     telhado: '#8A5A3C',
     janela: '#8FC9DC',
     plataforma: '#E4D7C2',
-    placa: '#1F3A3F',
+    placa: '#8F9490',
     chao: '#C9B088',
     acento: '#F5A623',
   }),
@@ -151,7 +170,7 @@ export const TEMAS = {
     telhado: '#B2563F',
     janela: '#F6E3C8',
     plataforma: '#EAD3B4',
-    placa: '#3A2A24',
+    placa: '#B08364',
     chao: '#D6B088',
     acento: '#2ED3C4',
   }),
@@ -165,7 +184,7 @@ export const TEMAS = {
     telhado: '#5A4636',
     janela: '#F2D7A2',
     plataforma: '#DADDE0',
-    placa: '#2B3444',
+    placa: '#86929A',
     chao: '#5F7D6C',
     acento: '#E9434F',
   }),
@@ -181,7 +200,7 @@ export const TEMAS = {
     telhado: '#5C6878',
     janela: '#9CC9EC',
     plataforma: '#E3E6EA',
-    placa: '#2A2D33',
+    placa: '#9298A2',
     chao: '#8C96A2',
     acento: '#F5C933',
   }),
@@ -197,7 +216,7 @@ export const TEMAS = {
     telhado: '#2A2450',
     janela: '#FFD36B',
     plataforma: '#8F89B4',
-    placa: '#1B1F3B',
+    placa: '#3E4168',
     chao: '#1E2446',
     acento: '#FF5FA8',
   }),
@@ -212,7 +231,7 @@ export const TEMAS = {
     telhado: '#F4F7FB',
     janela: '#FFD9A0',
     plataforma: '#F1F4F8',
-    placa: '#2F3A4A',
+    placa: '#9AA6B6',
     chao: '#E7ECF3',
     acento: '#5FB9EC',
   }),
@@ -228,7 +247,7 @@ export const TEMAS = {
     telhado: '#C58B52',
     janela: '#6FC8D8',
     plataforma: '#F3E2BE',
-    placa: '#1E3A2E',
+    placa: '#AE9774',
     chao: '#EFD9A8',
     acento: '#F8902C',
   }),
@@ -244,7 +263,7 @@ export const TEMAS = {
     telhado: '#4A2E26',
     janela: '#F7D9A0',
     plataforma: '#E6D2B2',
-    placa: '#3B2430',
+    placa: '#95735C',
     chao: '#C8884E',
     acento: '#F2C14E',
   }),
@@ -262,7 +281,7 @@ export const TEMAS = {
     telhado: '#C9D8EC',
     janela: '#9AF0D0',
     plataforma: '#7D8AA8',
-    placa: '#141A2E',
+    placa: '#2F3B58',
     chao: '#1C2742',
     acento: '#7CFFB2',
     guia: true,
