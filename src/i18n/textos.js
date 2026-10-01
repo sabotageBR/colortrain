@@ -2,9 +2,9 @@
 // Ingles e o padrao (Poki e global); PT e ES pelo idioma do navegador.
 
 const TEXTOS = {
-  en: { nivel: 'Level', desfazer: 'Undo', recomecar: 'Restart', dica: 'Hint', extra: 'Extra track', som: 'Sound' },
-  pt: { nivel: 'Nível', desfazer: 'Desfazer', recomecar: 'Recomeçar', dica: 'Dica', extra: 'Trilho extra', som: 'Som' },
-  es: { nivel: 'Nivel', desfazer: 'Deshacer', recomecar: 'Reiniciar', dica: 'Pista', extra: 'Vía extra', som: 'Sonido' },
+  en: { nivel: 'Level', desfazer: 'Undo', recomecar: 'Restart', dica: 'Hint', extra: 'Extra track', som: 'Sound', garagem: 'Locomotives', nova: 'New locomotive!', desbloquear: 'Unlock now', fechar: 'Close' },
+  pt: { nivel: 'Nível', desfazer: 'Desfazer', recomecar: 'Recomeçar', dica: 'Dica', extra: 'Trilho extra', som: 'Som', garagem: 'Locomotivas', nova: 'Nova locomotiva!', desbloquear: 'Liberar agora', fechar: 'Fechar' },
+  es: { nivel: 'Nivel', desfazer: 'Deshacer', recomecar: 'Reiniciar', dica: 'Pista', extra: 'Vía extra', som: 'Sonido', garagem: 'Locomotoras', nova: '¡Nueva locomotora!', desbloquear: 'Desbloquear ya', fechar: 'Cerrar' },
 };
 
 /** @param {readonly string[]} [langs] */

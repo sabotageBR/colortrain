@@ -1,10 +1,14 @@
 {
   "name": "colortrain",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Color Train: puzzle de trens por cor para a Poki (HTML + JavaScript puro).",
   "type": "module",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/",
+    "servir": "node tools/servir.mjs",
+    "niveis": "node tools/gerar-niveis.mjs",
+    "sdkcheck": "node tools/sdkcheck.mjs",
+    "poki": "node --test test/ && node tools/empacotar.mjs && node tools/sdkcheck.mjs dist/ && node tools/prints-build.mjs"
   }
 }

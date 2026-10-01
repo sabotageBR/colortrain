@@ -45,3 +45,37 @@ html,body{margin:0;height:100%;overflow:hidden;background:#7CC266;font-family:"F
   .btn.redondo{width:44px;height:44px}
 }
 @media (prefers-reduced-motion:reduce){.btn.pulsar{animation:none;box-shadow:0 0 0 4px #fff,0 5px 0 var(--sombra-btn)}.placa.pop{animation:none}}
+
+/* botao da garagem com anel de progresso ate a proxima locomotiva */
+#bGaragem{--prog:0;background:conic-gradient(var(--ouro) calc(var(--prog)*1turn),rgba(0,0,0,0) 0) border-box,linear-gradient(180deg,var(--creme),var(--creme2)) padding-box;border:4px solid transparent}
+#bGaragem svg{width:30px;height:30px;stroke-width:2.2}
+#bGaragem .ponto{position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:50%;background:#E9434F;box-shadow:0 0 0 2.5px #fff;display:none}
+#bGaragem.novidade .ponto{display:block;animation:pulsar .9s ease-in-out infinite}
+
+.painel{position:fixed;inset:0;z-index:10;display:grid;place-items:center;background:rgba(24,16,44,.55);padding:16px}
+.painel[hidden]{display:none}
+.cartao{width:min(440px,100%);max-height:100%;overflow:auto;background:linear-gradient(180deg,#FFF9EE,#F3E6CC);border-radius:26px;padding:16px 16px 18px;box-shadow:0 0 0 4px var(--ouro),0 8px 0 4px #b39352,0 18px 40px rgba(0,0,0,.4)}
+.cabeca{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.cabeca h2{margin:0 0 0 6px;font-size:24px;font-weight:700;color:var(--tinta)}
+.btn.pequeno{width:44px;height:44px}
+.btn.pequeno svg{width:22px;height:22px}
+.grade{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media (min-width:420px){.grade{grid-template-columns:repeat(2,1fr)}}
+.loco{position:relative;height:96px;border:0;border-radius:18px;padding:6px;cursor:pointer;background:#fff;box-shadow:0 4px 0 #d9c9a6,inset 0 0 0 2px #efe3c8}
+.loco canvas{width:100%;height:100%;display:block}
+.loco.ativa{box-shadow:0 4px 0 #b88d16,inset 0 0 0 4px var(--ouro);background:#FFF6D8}
+.loco.ativa::after{content:"";position:absolute;top:8px;left:8px;width:22px;height:22px;border-radius:50%;background:#4FBA4C;box-shadow:0 0 0 2px #fff}
+.loco.ativa::before{content:"";position:absolute;z-index:1;top:13px;left:16px;width:5px;height:10px;border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
+.loco.bloqueada{cursor:default;background:#ECE4F4;box-shadow:0 4px 0 #cbbfdc}
+.cadeado{position:absolute;inset:auto 0 8px 0;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;font-size:16px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+.cadeado svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2.4;stroke-linecap:round}
+.btn.largo{width:100%;height:56px;margin-top:14px;display:flex;gap:10px;justify-content:center;align-items:center;font:inherit;font-weight:700;font-size:19px;color:var(--tinta)}
+.btn.largo svg{width:26px;height:26px}
+.btn.largo[hidden]{display:none}
+
+/* aviso de locomotiva nova */
+.aviso{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 74px);z-index:5;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:6px 16px 6px 8px;border-radius:18px;background:var(--placa);color:#fff;font-weight:700;font-size:17px;box-shadow:0 0 0 3px var(--ouro),0 8px 18px rgba(0,0,0,.35);animation:entra .5s cubic-bezier(.3,1.6,.5,1);cursor:pointer;white-space:nowrap}
+.aviso canvas{width:84px;height:50px;background:#FFF9EE;border-radius:12px}
+.aviso[hidden]{display:none}
+@keyframes entra{0%{transform:translateX(-50%) translateY(-30px) scale(.7);opacity:0}100%{transform:translateX(-50%) translateY(0) scale(1);opacity:1}}
+body.sem-anuncio .anuncio{display:none}

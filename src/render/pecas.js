@@ -4,7 +4,7 @@
 // O corpo (lateral, teto, janelas, selo) vira sprite em cache por cor e
 // tamanho; rodas, biela e sombra sao desenhadas por quadro porque giram.
 
-import { CORES } from './tema.js';
+import { CORES, misturar } from './tema.js';
 
 /** @typedef {import('./tema.js').Tema} Tema */
 
@@ -318,16 +318,23 @@ export function desenharEngate(ctx, xa, xb, y, L) {
  * @typedef {{ caldeira: string, caldeiraClaro: string, cabine: string, cabineClaro: string,
  *   teto: string, friso: string, roda: string }} Pintura
  */
+/**
+ * Colecao de pinturas da locomotiva (a garagem): uma nova a cada 5 niveis.
+ * @type {(Pintura & { id: string })[]}
+ */
+export const PINTURAS = [
+  { id: 'classica', caldeira: '#2E3150', caldeiraClaro: '#4C5180', cabine: '#D63A3A', cabineClaro: '#F06A5E', teto: '#262840', friso: '#F4C430', roda: '#D63A3A' },
+  { id: 'esmeralda', caldeira: '#1F6B4A', caldeiraClaro: '#35A271', cabine: '#F3E7D3', cabineClaro: '#FFFFFF', teto: '#16452F', friso: '#F4C430', roda: '#C9533B' },
+  { id: 'real', caldeira: '#22408F', caldeiraClaro: '#3F6AD4', cabine: '#1B2C63', cabineClaro: '#33509E', teto: '#121D42', friso: '#FFD45A', roda: '#FFD45A' },
+  { id: 'cereja', caldeira: '#B3202E', caldeiraClaro: '#E64B58', cabine: '#2A2233', cabineClaro: '#4A3C56', teto: '#1A1420', friso: '#F7E3B5', roda: '#2A2233' },
+  { id: 'girassol', caldeira: '#E58A1F', caldeiraClaro: '#FFB54D', cabine: '#F5C933', cabineClaro: '#FFE27A', teto: '#8C4A12', friso: '#FFFFFF', roda: '#3A86F2' },
+  { id: 'lavanda', caldeira: '#6E4BB8', caldeiraClaro: '#9877E6', cabine: '#EF58AF', cabineClaro: '#FF8FCD', teto: '#3E2873', friso: '#FFE173', roda: '#EF58AF' },
+  { id: 'neve', caldeira: '#DCE6F2', caldeiraClaro: '#FFFFFF', cabine: '#5FB3EA', cabineClaro: '#A6DCFF', teto: '#3E6E99', friso: '#3E6E99', roda: '#3E6E99' },
+  { id: 'ouro', caldeira: '#1A1A22', caldeiraClaro: '#3D3D4D', cabine: '#D4A017', cabineClaro: '#F7CF5C', teto: '#0E0E14', friso: '#F7CF5C', roda: '#D4A017' },
+];
+
 /** @type {Pintura} */
-export const PINTURA_CLASSICA = {
-  caldeira: '#2E3150',
-  caldeiraClaro: '#4C5180',
-  cabine: '#D63A3A',
-  cabineClaro: '#F06A5E',
-  teto: '#262840',
-  friso: '#F4C430',
-  roda: '#D63A3A',
-};
+export const PINTURA_CLASSICA = PINTURAS[0];
 
 /** @param {CanvasRenderingContext2D} g @param {number} L @param {Tema} tema @param {Pintura} p */
 function corpoLoco(g, L, tema, p) {
@@ -364,7 +371,7 @@ function corpoLoco(g, L, tema, p) {
   let gr = g.createLinearGradient(0, -0.58 * L, 0, -0.22 * L);
   gr.addColorStop(0, p.caldeiraClaro);
   gr.addColorStop(0.35, p.caldeira);
-  gr.addColorStop(1, '#16172a');
+  gr.addColorStop(1, misturar(p.caldeira, '#000000', 0.5));
   g.fillStyle = gr;
   caminhoRet(g, -0.56 * L, -0.56 * L, 0.8 * L, 0.34 * L, 0.15 * L);
   g.fill();
@@ -407,7 +414,7 @@ function corpoLoco(g, L, tema, p) {
   gr = g.createLinearGradient(0, -0.86 * L, 0, -0.18 * L);
   gr.addColorStop(0, p.cabineClaro);
   gr.addColorStop(0.25, p.cabine);
-  gr.addColorStop(1, '#8e2427');
+  gr.addColorStop(1, misturar(p.cabine, '#000000', 0.35));
   g.fillStyle = gr;
   caminhoRet(g, 0.2 * L, -0.84 * L, 0.44 * L, 0.66 * L, 0.05 * L);
   g.fill();

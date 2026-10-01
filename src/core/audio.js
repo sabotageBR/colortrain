@@ -12,9 +12,10 @@ export function criarAudio() {
   let ruidoBuf = null;
   let mudo = false;
   let mudoAnuncio = false;
+  let abaOculta = false;
   const VOLUME = 0.6;
 
-  const ganhoAlvo = () => (mudo || mudoAnuncio ? 0 : VOLUME);
+  const ganhoAlvo = () => (mudo || mudoAnuncio || abaOculta ? 0 : VOLUME);
 
   function iniciar() {
     if (ctx) {
@@ -85,6 +86,10 @@ export function criarAudio() {
     get mudo() {
       return mudo;
     },
+    /** true se o som esta zerado agora (mudo, anuncio ou aba oculta) */
+    get calado() {
+      return ganhoAlvo() === 0;
+    },
     /** @param {boolean} v */
     definirMudo(v) {
       mudo = v;
@@ -96,6 +101,14 @@ export function criarAudio() {
       setTimeout(() => {
         if (mudoAnuncio && ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
       }, 80);
+    },
+    /** @param {boolean} oculta */
+    pausarAba(oculta) {
+      abaOculta = oculta;
+      aplicarGanho();
+      if (!ctx) return;
+      if (oculta) ctx.suspend().catch(() => {});
+      else if (!mudoAnuncio) ctx.resume().catch(() => {});
     },
     voltarDoAnuncio() {
       mudoAnuncio = false;

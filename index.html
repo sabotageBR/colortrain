@@ -6,6 +6,8 @@
 <title>Color Train</title>
 <link rel="preload" href="src/ui/fontes/fredoka-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="src/ui/estilo.css">
+<!-- Unico script externo permitido pela Poki. -->
+<script src="https://game-cdn.poki.com/scripts/v2/poki-sdk.js"></script>
 </head>
 <body>
 <canvas id="cena"></canvas>
@@ -14,8 +16,12 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path class="ligado" d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="none"/><path class="ligado" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.6 7.6 0 0 1 0 11"/><path class="desligado" d="M15.5 9.5l5 5M20.5 9.5l-5 5" style="display:none"/></svg>
   </button>
   <div id="placa" class="placa"><span id="placaRotulo">Level</span><b id="placaNum">1</b></div>
-  <span class="espaco"></span>
+  <button id="bGaragem" class="btn redondo" aria-label="Locomotives">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.5h16.5"/><path d="M4 16V11h8.5v5"/><path d="M12.5 16V6.5h6V16"/><path d="M6 11V7.5h2V11"/><path d="M14.5 9h2"/><circle cx="7" cy="18.5" r="1.6"/><circle cx="15.5" cy="18.5" r="1.6"/></svg>
+    <i class="ponto" aria-hidden="true"></i>
+  </button>
 </div>
+<div id="aviso" class="aviso" hidden><canvas></canvas><span></span></div>
 <div id="base" class="hud">
   <button id="bDesfazer" class="btn" aria-label="Undo">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 5L4 9.5 8.5 14"/><path d="M4.5 9.5H14a5.5 5.5 0 0 1 0 11h-3.5"/></svg>

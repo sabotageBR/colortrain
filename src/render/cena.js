@@ -6,7 +6,7 @@
 import { desenharCenario } from './cenario.js';
 import {
   desenharVagao, desenharLoco, desenharSanfona, desenharEngate, desenharSombra,
-  desenharLuzSinal, desenharMao, desenharSimbolo, pontaChamine, limparCache, caminhoRet,
+  desenharLuzSinal, desenharMao, desenharSimbolo, pontaChamine, limparCache, caminhoRet, PINTURA_CLASSICA,
 } from './pecas.js';
 import { completo, bloco } from '../jogo/regras.js';
 import { CORES } from './tema.js';
@@ -31,6 +31,8 @@ export function criarCena(canvas) {
   /** @type {Estado|null} */
   let st = null;
   let agora = 0;
+  /** @type {import('./pecas.js').Pintura} */
+  let pintura = PINTURA_CLASSICA;
 
   /** @type {Map<number, any>} */
   const carros = new Map();
@@ -421,7 +423,7 @@ export function criarCena(canvas) {
       for (const c of noTrilho) desenharSombra(ctx, vis.get(c.id).x, c.y, L, 1, tema);
       if (l) {
         const p = posDesenho(l);
-        desenharLoco(ctx, p.x, p.y, L, tema, dpr, { aceso: l.aceso, roda: l.roda, escalaY: escalaEsmaga(l) });
+        desenharLoco(ctx, p.x, p.y, L, tema, dpr, { aceso: l.aceso, roda: l.roda, escalaY: escalaEsmaga(l), pintura });
       }
       for (const c of noTrilho) ligacoes(c, vis.get(c.id));
       for (const c of noTrilho) {
@@ -517,6 +519,10 @@ export function criarCena(canvas) {
     },
     sincronizar,
     desenhar,
+    /** @param {import('./pecas.js').Pintura} p */
+    definirPintura(p) {
+      pintura = p;
+    },
     chegada,
     chegarLoco,
     partir,

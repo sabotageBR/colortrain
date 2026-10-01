@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>sdkcheck</title>
+<style>html,body{margin:0;background:#111;color:#eee;font:13px monospace}iframe{border:0;width:390px;height:844px;display:block}</style></head>
+<body><iframe id="f"></iframe><pre id="resultado"></pre>
+<script type="module">
+// Banco de testes do SDK: carrega o jogo num iframe (srcdoc, mesma origem)
+// trocando a tag do SDK da Poki por um SDK falso que registra cada chamada,
+// e simula o jogador. ?cenario=normal|recusa|bloqueado|pendente|lsquebrado
+const q = new URLSearchParams(location.search);
+const cenario = q.get('cenario') || 'normal';
+// raiz do jogo testado: '' (fonte) ou 'dist/' (build que vai para a Poki)
+const raiz = (q.get('raiz') || '').replace(/[^a-z0-9/_-]/gi, '');
+const log = [];
+const t0 = performance.now();
+const anotar = (...x) => log.push([Math.round(performance.now() - t0), ...x]);
+window.__log = log;
+const falhas = [];
+const conferir = (ok, msg) => { if (!ok) falhas.push(msg); };
+const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const sdkFalso = `
+<script>
+  const L = (...x) => parent.__anotar(...x);
+  window.PokiSDK = {
+    init() { L('init'); return ${cenario === 'pendente' ? 'new Promise(() => {})' : 'Promise.resolve()'}; },
+    gameLoadingFinished() { L('gameLoadingFinished'); },
+    gameplayStart() { L('gameplayStart'); },
+    gameplayStop() { L('gameplayStop'); },
+    commercialBreak(aoIniciar) { L('commercialBreak', parent.__calado()); if (aoIniciar) aoIniciar(); return new Promise((r) => setTimeout(() => { L('fimCommercial', parent.__calado()); r(); }, 400)); },
+    rewardedBreak(o) { L('rewardedBreak', parent.__calado()); const ini = typeof o === 'function' ? o : o && o.onStart; if (ini) ini(); return new Promise((r) => setTimeout(() => r(${cenario === 'recusa' ? 'false' : 'true'}), 300)); },
+    measure(a, b, c) { L('measure', a + '/' + b + '/' + c); },
+    getDeviceInfo() { return { category: 'mobile' }; },
+  };
+<\/script>`;
+const lsQuebrado = `
+<script>
+  const quebra = () => { throw new Error('quota'); };
+  Storage.prototype.getItem = quebra; Storage.prototype.setItem = quebra; Storage.prototype.removeItem = quebra;
+<\/script>`;
+window.__anotar = anotar;
+window.__calado = () => { try { return !!f.contentWindow.__ct.audio.calado; } catch { return 'n/a'; } };
+
+const f = document.getElementById('f');
+let html = await (await fetch('../' + raiz + 'index.html')).text();
+const tag = /<!-- Unico script externo permitido pela Poki. -->\s*<script src="https:\/\/game-cdn\.poki\.com\/scripts\/v2\/poki-sdk\.js"><\/script>/;
+conferir(tag.test(html), 'index.html sem a tag do SDK da Poki no formato esperado');
+const nivel = 4;
+const teste = `<script>window.__colortrainTeste = { nivel: ${nivel}, fixo: true };<\/script>`;
+const extra = cenario === 'bloqueado' ? '' : cenario === 'lsquebrado' ? lsQuebrado + sdkFalso : sdkFalso;
+html = html.replace(tag, extra).replace('<head>', '<head><base href="/' + raiz + '">' + teste);
+f.srcdoc = html;
+await new Promise((r) => (f.onload = r));
+const w = () => f.contentWindow;
+const ct = () => w().__ct;
+const nomes = () => log.map((l) => l[1]);
+
+await espera(600);
+conferir(!!ct(), 'jogo nao subiu (sem __ct)');
+conferir(ct() && ct().J.st.trilhos.length > 0, 'nivel nao montou');
+if (cenario === 'bloqueado' || cenario === 'pendente') {
+  await espera(4600);
+  conferir(w().document.body.classList.contains('sem-anuncio'), 'sem SDK os botoes de video deviam sumir');
+  // o jogo segue jogavel: resolve o nivel sozinho
+  ct().auto(120);
+  await espera(9000);
+  conferir(ct().J.nivel > nivel, 'sem SDK o nivel nao avancou');
+} else {
+  conferir(nomes().includes('init'), 'init nao chamado');
+  conferir(nomes().includes('gameLoadingFinished'), 'gameLoadingFinished nao chamado');
+  conferir(!nomes().includes('gameplayStart'), 'gameplayStart antes de qualquer toque');
+  await espera(1200);
+  conferir(!nomes().includes('gameplayStart'), 'gameplayStart sem input');
+  // toque real no tabuleiro
+  const cv = w().document.getElementById('cena');
+  const lay = ct().cena.layout;
+  const y = lay.trilhos[0].yb - lay.L * 0.3;
+  cv.dispatchEvent(new (w().PointerEvent)('pointerdown', { clientX: lay.xVaga(0, 1), clientY: y, pointerId: 1, bubbles: true }));
+  cv.dispatchEvent(new (w().PointerEvent)('pointerup', { clientX: lay.xVaga(0, 1), clientY: y, pointerId: 1, bubbles: true }));
+  conferir(nomes().includes('gameplayStart'), 'gameplayStart nao veio depois do toque');
+  // video recompensado da dica
+  w().document.getElementById('bDica').click();
+  await espera(700);
+  const rw = log.find((l) => l[1] === 'rewardedBreak');
+  conferir(!!rw, 'rewardedBreak nao chamado');
+  conferir(rw && rw[2] === true, 'som nao estava mudo durante o rewarded');
+  if (cenario === 'recusa') conferir(!ct().J.mao, 'premio dado com rewarded false');
+  else conferir(!!ct().J.mao, 'premio negado com rewarded true');
+  // termina o nivel 4 (sem intervalo) e o 5 (com intervalo ao entrar no 6)
+  ct().auto(120);
+  await espera(12000);
+  conferir(ct().J.nivel >= 6, 'nao chegou ao nivel 6 (nivel ' + ct().J.nivel + ')');
+  const cb = log.filter((l) => l[1] === 'commercialBreak');
+  const iMedida = (m) => log.findIndex((l) => l[1] === 'measure' && l[2] === m);
+  conferir(cb.length >= 1, 'nenhum commercialBreak na entrada do nivel 6');
+  // nada de intervalo nos 5 primeiros niveis: o primeiro vem entre o fim do 5 e o comeco do 6
+  conferir(cb.length && log.indexOf(cb[0]) > iMedida('level/5/complete') && log.indexOf(cb[0]) < iMedida('level/6/start'), 'primeiro commercialBreak fora da entrada do nivel 6');
+  conferir(cb[0] && cb[0][2] === true, 'som nao estava mudo durante o commercialBreak');
+  const iCb = log.indexOf(cb[0]);
+  const stopAntes = log.slice(0, iCb).map((l) => l[1]).lastIndexOf('gameplayStop') > log.slice(0, iCb).map((l) => l[1]).lastIndexOf('gameplayStart');
+  conferir(stopAntes, 'commercialBreak sem gameplayStop antes');
+  const depoisCb = log.slice(iCb + 1).map((l) => l[1]);
+  conferir(!depoisCb.includes('gameplayStart'), 'gameplayStart depois do anuncio sem novo toque');
+  const fimCb = log.find((l) => l[1] === 'fimCommercial');
+  conferir(fimCb && fimCb[2] === true, 'som voltou antes do fim do anuncio');
+  conferir(!window.__calado(), 'som nao voltou depois do anuncio');
+  const medidas = log.filter((l) => l[1] === 'measure').map((l) => l[2]);
+  conferir(medidas.includes('level/4/start') && medidas.includes('level/4/complete'), 'measure de nivel faltando: ' + medidas.join(','));
+}
+if (cenario === 'lsquebrado') conferir(ct().J.nivel > nivel, 'com localStorage quebrado o jogo nao avancou');
+const r = { cenario, passou: falhas.length === 0, falhas, log };
+document.title = r.passou ? 'PASSOU' : 'FALHOU';
+document.getElementById('resultado').textContent = 'RESULTADO ' + JSON.stringify(r);
+</script></body></html>

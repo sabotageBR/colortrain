@@ -1,13 +1,16 @@
-// Ponto de entrada do Color Train: liga estado, cena, entrada, HUD e som.
+// Ponto de entrada do Color Train: liga estado, cena, entrada, HUD, som,
+// garagem e Poki. Unico modulo que importa core/poki.js.
 //
 // Fluxo de um nivel: os vagoes chegam pela direita -> o jogador leva blocos
 // da frente de um trilho para o fim de outro (toque-toque ou arraste) ->
 // cada trem de uma cor so ganha locomotiva -> com todos prontos, os trens
-// partem e o proximo nivel chega sem tela no meio.
+// partem, vem o intervalo comercial (a partir do nivel 6, a Poki decide a
+// frequencia) e o proximo nivel chega sem tela no meio.
 
 import { criarCena } from './render/cena.js';
 import { calcularLayout, trilhoEm } from './render/layout.js';
 import { TEMAS } from './render/tema.js';
+import { PINTURAS } from './render/pecas.js';
 import { bloco, pode, mover, resolvido, jogadas, destinos, paraTexto, completo } from './jogo/regras.js';
 import { definicaoNivel } from './jogo/catalogo.js';
 import { resolver } from './jogo/solucionador.js';
@@ -15,6 +18,8 @@ import { criarAudio } from './core/audio.js';
 import { criarArmazem } from './core/armazenamento.js';
 import { escolherIdioma, textos } from './i18n/textos.js';
 import { lerDepuracao } from './core/depuracao.js';
+import { poki } from './core/poki.js';
+import { criarGaragem, liberadas, desenharPrevia, NIVEIS_POR_LOCO } from './ui/garagem.js';
 
 const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const canvas = /** @type {HTMLCanvasElement} */ ($('cena'));
@@ -24,9 +29,14 @@ const armazem = criarArmazem();
 const dep = lerDepuracao();
 const T = textos(escolherIdioma());
 
+/** Niveis sem intervalo comercial no comeco da sessao (primeiros minutos limpos). */
+const NIVEIS_SEM_INTERVALO = 5;
+/** Cada mundo (cenario) dura 25 niveis: dia, noite, dia... */
+const NIVEIS_POR_MUNDO = 25;
+
 const VERSAO_SAVE = 1;
 const salvo = armazem.ler('save', null);
-const save = salvo && salvo.v === VERSAO_SAVE ? salvo : { v: VERSAO_SAVE, nivel: 1, mudo: false };
+const save = salvo && salvo.v === VERSAO_SAVE ? salvo : { v: VERSAO_SAVE, nivel: 1, mudo: false, loco: 0, extras: 0, vista: 1 };
 
 /** @typedef {import('./jogo/regras.js').Estado} Estado */
 const J = {
@@ -49,11 +59,16 @@ const J = {
   gen: 0,
   desf: 0,
   extraUsado: false,
-  tema: TEMAS[dep.tema] || TEMAS.dia,
+  carregou: false,
+  loco: Math.min(save.loco || 0, PINTURAS.length - 1),
+  extras: save.extras || 0,
+  /** locomotivas que o jogador ja viu liberadas (para o ponto de novidade) */
+  vista: save.vista || 1,
+  tema: TEMAS.dia,
 };
 
 function salvar() {
-  armazem.gravar('save', { v: VERSAO_SAVE, nivel: J.nivel, mudo: audio.mudo });
+  armazem.gravar('save', { v: VERSAO_SAVE, nivel: J.nivel, mudo: audio.mudo, loco: J.loco, extras: J.extras, vista: J.vista });
 }
 
 /** Agenda que morre com troca de nivel e com desfazer. */
@@ -73,6 +88,11 @@ function criarEstado(def) {
   };
 }
 const foto = () => J.st.trilhos.map((t) => t.slice());
+
+function temaDoNivel() {
+  if (dep.tema && TEMAS[dep.tema]) return TEMAS[dep.tema];
+  return Math.floor((J.nivel - 1) / NIVEIS_POR_MUNDO) % 2 ? TEMAS.noite : TEMAS.dia;
+}
 
 // ------------------------------------------------------------------ layout
 function medirLayout() {
@@ -98,27 +118,42 @@ function redimensionar() {
 }
 
 // -------------------------------------------------------------------- HUD
-function atualizarHud() {
+function atualizarHud(pop = false) {
   $('placaRotulo').textContent = T.nivel;
   $('placaNum').textContent = String(J.nivel);
-  const placa = $('placa');
-  placa.classList.remove('pop');
-  void placa.offsetWidth;
-  placa.classList.add('pop');
+  if (pop) {
+    const placa = $('placa');
+    placa.classList.remove('pop');
+    void placa.offsetWidth;
+    placa.classList.add('pop');
+  }
   $('bExtra').toggleAttribute('disabled', J.extraUsado);
-  for (const [id, chave] of [['bDesfazer', 'desfazer'], ['bRecomecar', 'recomecar'], ['bDica', 'dica'], ['bExtra', 'extra'], ['bSom', 'som']]) {
+  for (const [id, chave] of [['bDesfazer', 'desfazer'], ['bRecomecar', 'recomecar'], ['bDica', 'dica'], ['bExtra', 'extra'], ['bSom', 'som'], ['bGaragem', 'garagem']]) {
     $(id).setAttribute('aria-label', T[chave]);
     $(id).title = T[chave];
   }
-  const svg = $('bSom');
-  svg.querySelectorAll('.ligado').forEach((e) => /** @type {SVGElement} */ (e).style.display = audio.mudo ? 'none' : '');
-  /** @type {SVGElement} */ (svg.querySelector('.desligado')).style.display = audio.mudo ? '' : 'none';
-  if (audio.mudo) /** @type {SVGElement} */ (svg.querySelector('.ligado')).style.display = '';
+  const som = $('bSom');
+  som.querySelectorAll('.ligado').forEach((e) => { /** @type {SVGElement} */ (e).style.display = audio.mudo ? 'none' : ''; });
+  /** @type {SVGElement} */ (som.querySelector('.desligado')).style.display = audio.mudo ? '' : 'none';
+  if (audio.mudo) /** @type {SVGElement} */ (som.querySelector('.ligado')).style.display = '';
+  // anel da garagem: progresso ate a proxima locomotiva
+  const n = liberadas(J.nivel, J.extras);
+  const prog = n >= PINTURAS.length ? 1 : ((J.nivel - 1) % NIVEIS_POR_LOCO) / NIVEIS_POR_LOCO;
+  $('bGaragem').style.setProperty('--prog', String(prog));
+  $('bGaragem').classList.toggle('novidade', n > J.vista);
 }
 
 /** @param {boolean} sim */
 function pulsarAjuda(sim) {
   for (const id of ['bDesfazer', 'bRecomecar', 'bExtra']) $(id).classList.toggle('pulsar', sim && !(id === 'bExtra' && J.extraUsado));
+}
+
+function avisarLocoNova(i) {
+  const aviso = $('aviso');
+  /** @type {HTMLElement} */ (aviso.querySelector('span')).textContent = T.nova;
+  aviso.hidden = false;
+  desenharPrevia(/** @type {HTMLCanvasElement} */ (aviso.querySelector('canvas')), i, false);
+  setTimeout(() => { aviso.hidden = true; }, 2600);
 }
 
 // ------------------------------------------------------------------- nivel
@@ -134,12 +169,20 @@ function iniciarNivel(chegar = true) {
   J.toque = null;
   J.pendentes = 0;
   J.extraUsado = false;
+  J.tema = temaDoNivel();
+  document.body.style.background = J.tema.grama;
   pulsarAjuda(false);
-  atualizarHud();
+  atualizarHud(true);
+  cena.definirPintura(PINTURAS[J.loco]);
   cena.configurar(J.st, medirLayout(), J.tema, { novo: true });
   J.fase = 'chegando';
   const ms = chegar ? cena.chegada() : 0;
   if (chegar) audio.chuchu(6);
+  if (!J.carregou) {
+    J.carregou = true;
+    poki.gameLoadingFinished();
+  }
+  poki.measure('level', String(J.nivel), 'start');
   depois(ms + 40, () => {
     J.fase = 'jogando';
     if (J.nivel <= 2) mostrarMao();
@@ -198,6 +241,8 @@ function partir() {
   J.fase = 'partindo';
   J.sel = null;
   cena.selecionar(null);
+  poki.measure('level', String(J.nivel), 'complete');
+  poki.gameplayStop();
   audio.vitoria();
   audio.apito(0.35);
   audio.chuchu(14, 0.5);
@@ -205,9 +250,23 @@ function partir() {
   depois(ms + 120, proximoNivel);
 }
 
-function proximoNivel() {
+async function proximoNivel() {
+  const antes = liberadas(J.nivel, J.extras);
   J.nivel++;
+  const depoisN = liberadas(J.nivel, J.extras);
+  if (depoisN > antes) {
+    // locomotiva nova: ja entra no proximo nivel
+    J.loco = depoisN - 1;
+    J.vista = depoisN;
+    avisarLocoNova(J.loco);
+  }
   salvar();
+  // intervalo comercial na pausa natural entre niveis (a Poki decide se mostra)
+  if (J.nivel - 1 >= NIVEIS_SEM_INTERVALO && !dep.semAnuncio) {
+    const g = J.gen;
+    await poki.commercialBreak();
+    if (g !== J.gen) return;
+  }
   iniciarNivel(true);
 }
 
@@ -226,9 +285,14 @@ function restaurar(f) {
 }
 
 // ------------------------------------------------------------- recompensa
-/** Rewarded: ate a etapa da Poki, libera direto. @returns {Promise<boolean>} */
+/**
+ * Video recompensado, so por escolha do jogador. Premio so com true. Em
+ * desenvolvimento local sem SDK, libera direto para dar para testar.
+ * @returns {Promise<boolean>}
+ */
 async function recompensa() {
-  return true;
+  if (poki.sdkPronto) return poki.rewardedBreak();
+  return dep.local;
 }
 
 // ------------------------------------------------------------------ acoes
@@ -243,12 +307,14 @@ function recomecar() {
 }
 async function dica() {
   if (J.fase !== 'jogando') return;
-  if (!(await recompensa())) return;
+  const g = J.gen;
+  if (!(await recompensa()) || g !== J.gen || J.fase !== 'jogando') return;
   if (!mostrarMao()) pulsarAjuda(true);
 }
 async function trilhoExtra() {
   if (J.fase !== 'jogando' || J.extraUsado) return;
-  if (!(await recompensa())) return;
+  const g = J.gen;
+  if (!(await recompensa()) || g !== J.gen || J.fase !== 'jogando') return;
   J.extraUsado = true;
   J.st.trilhos.push([]);
   J.ini.push([]);
@@ -258,6 +324,36 @@ async function trilhoExtra() {
   cena.configurar(J.st, medirLayout(), J.tema);
   cena.tremer(J.st.trilhos.length - 1);
 }
+
+const garagem = criarGaragem({
+  textos: T,
+  aoEscolher(i) {
+    J.loco = i;
+    cena.definirPintura(PINTURAS[i]);
+    salvar();
+    audio.pegar();
+  },
+  async aoLiberar() {
+    if (liberadas(J.nivel, J.extras) >= PINTURAS.length) return false;
+    if (!(await recompensa())) return false;
+    J.extras++;
+    J.loco = liberadas(J.nivel, J.extras) - 1;
+    J.vista = Math.max(J.vista, liberadas(J.nivel, J.extras));
+    cena.definirPintura(PINTURAS[J.loco]);
+    salvar();
+    garagem.atualizar({ nivel: J.nivel, extras: J.extras, ativa: J.loco });
+    atualizarHud();
+    audio.apito();
+    return true;
+  },
+  aoAbrir() {
+    poki.gameplayStop();
+    J.vista = Math.max(J.vista, liberadas(J.nivel, J.extras));
+    salvar();
+    atualizarHud();
+  },
+  aoFechar() {},
+});
 
 // ----------------------------------------------------------------- entrada
 /** @param {PointerEvent} e */
@@ -280,6 +376,8 @@ function podePegar(i) {
 canvas.addEventListener('pointerdown', (e) => {
   audio.iniciar();
   if (J.fase !== 'jogando') return;
+  // so com input real do jogador (regra do Inspector da Poki)
+  poki.gameplayStart();
   const lay = cena.layout;
   if (!lay) return;
   const p = ponto(e);
@@ -339,7 +437,7 @@ canvas.addEventListener('pointermove', (e) => {
   tq.alvo = alvo === tq.i ? -1 : alvo;
 });
 
-function soltar(/** @type {PointerEvent} */ e) {
+function soltar() {
   const tq = J.toque;
   if (!tq) return;
   J.toque = null;
@@ -362,21 +460,36 @@ function soltar(/** @type {PointerEvent} */ e) {
     J.sel = null;
     cena.selecionar(null);
   }
-  void e;
 }
 canvas.addEventListener('pointerup', soltar);
 canvas.addEventListener('pointercancel', soltar);
 
-$('bDesfazer').addEventListener('click', () => { audio.iniciar(); desfazer(); });
-$('bRecomecar').addEventListener('click', () => { audio.iniciar(); recomecar(); });
-$('bDica').addEventListener('click', () => { audio.iniciar(); dica(); });
-$('bExtra').addEventListener('click', () => { audio.iniciar(); trilhoExtra(); });
-$('bSom').addEventListener('click', () => {
-  audio.iniciar();
+/** Botoes do HUD tambem contam como input real para o gameplayStart. */
+function botao(id, fn) {
+  $(id).addEventListener('click', () => {
+    audio.iniciar();
+    if (J.fase === 'jogando' && !garagem.aberta) poki.gameplayStart();
+    fn();
+  });
+}
+botao('bDesfazer', desfazer);
+botao('bRecomecar', recomecar);
+botao('bDica', dica);
+botao('bExtra', trilhoExtra);
+botao('bSom', () => {
   audio.definirMudo(!audio.mudo);
   salvar();
   atualizarHud();
 });
+$('bGaragem').addEventListener('click', () => {
+  audio.iniciar();
+  garagem.atualizar({ nivel: J.nivel, extras: J.extras, ativa: J.loco, comAnuncio: poki.sdkPronto || dep.local });
+  garagem.abrir();
+});
+$('aviso').addEventListener('click', () => $('bGaragem').click());
+
+// som para quando a aba some (a Poki cobra isso)
+document.addEventListener('visibilitychange', () => audio.pausarAba(document.hidden));
 
 // --------------------------------------------------------------- quadro
 function quadro(t) {
@@ -409,9 +522,25 @@ function passoAuto() {
 }
 
 // ---------------------------------------------------------------- inicio
+poki.onAdStart = () => audio.mudoParaAnuncio();
+poki.onAdEnd = () => audio.voltarDoAnuncio();
+poki.init().then(() => {
+  // sem SDK (bloqueador) nao ha video, entao os botoes de video somem
+  if (!poki.sdkPronto && !dep.local) document.body.classList.add('sem-anuncio');
+});
 audio.definirMudo(!!save.mudo);
 window.addEventListener('resize', redimensionar);
 redimensionar();
 iniciarNivel(!dep.fixo);
 requestAnimationFrame(quadro);
-if (dep.local) /** @type {any} */ (window).__ct = { J, cena, executar };
+if (dep.ganchos) {
+  /** @type {any} */ (window).__ct = {
+    J, cena, executar, poki, audio,
+    /** joga a solucao sozinho, uma jogada a cada ms */
+    auto(ms = 200) {
+      dep.auto = ms;
+      if (J.fase === 'jogando') passoAuto();
+    },
+  };
+}
+if (dep.garagem) $('bGaragem').click();
