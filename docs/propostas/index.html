@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cenários — Color Train</title>
+<style>
+@font-face{font-family:"Fredoka";font-weight:600;font-display:swap;src:url("../../src/ui/fontes/fredoka-latin-600-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Fredoka";font-weight:600;font-display:swap;src:url("../../src/ui/fontes/fredoka-latin-ext-600-normal.woff2") format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Fredoka";font-weight:700;font-display:swap;src:url("../../src/ui/fontes/fredoka-latin-700-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Fredoka";font-weight:700;font-display:swap;src:url("../../src/ui/fontes/fredoka-latin-ext-700-normal.woff2") format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+
+:root{
+  --ceu:#0B0D2E;
+  --tinta:#F3E7D3;
+  --mudo:#C9BBA6;
+  --chip:#2A2450;
+  --linha:#3A3468;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--ceu);
+  color:var(--tinta);
+  font-family:"Fredoka",system-ui,sans-serif;
+  font-weight:600;
+  line-height:1.45;
+}
+header,main{width:min(1100px,calc(100% - 32px));margin:0 auto}
+header{padding:48px 0 12px}
+h1{margin:0 0 12px;font-size:clamp(32px,5vw,52px);font-weight:700;letter-spacing:-0.03em;line-height:1.05}
+header p, .epoca p{margin:0;max-width:62ch;color:var(--mudo);font-size:18px}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin:28px 0 8px}
+nav a{
+  color:var(--tinta);
+  text-decoration:none;
+  background:var(--chip);
+  border-radius:999px;
+  padding:8px 14px;
+  font-size:15px;
+}
+nav a:focus-visible{outline:3px solid #F4C430;outline-offset:2px}
+.epoca{padding:28px 0 8px}
+.epoca h2{margin:0 0 6px;font-size:22px}
+figure{
+  margin:22px 0 8px;
+  background:#16122E;
+  border-radius:22px;
+  overflow:hidden;
+}
+figure img{display:block;width:100%;height:auto}
+figcaption{padding:16px 18px 18px}
+figcaption h3{margin:0 0 6px;font-size:22px}
+figcaption .ordem{color:#F4C430}
+.meta{margin:0 0 8px;color:var(--mudo)}
+.nota{margin:0;color:#F6D7A8}
+.cores{display:flex;gap:6px;margin:10px 0 0}
+.cores i{width:18px;height:18px;border-radius:50%;display:block;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+footer{width:min(1100px,calc(100% - 32px));margin:12px auto 48px;color:var(--mudo)}
+@media (max-width:640px){
+  header{padding-top:28px}
+  header p,.epoca p{font-size:16px}
+  figcaption h3{font-size:19px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Dez cenários para a campanha</h1>
+  <p>A frente da fila continua à esquerda, no sinal, e as oito cores dos vagões são as de hoje. O que muda é o lugar, a luz e o corpo do trem. A ordem abaixo já é a da viagem. Com as dez, o pátio troca a cada 15 níveis. Com menos, elas entram nesta mesma sequência.</p>
+  <nav>
+    <a href="#vila">Vila</a>
+    <a href="#tijolo">Tijolo</a>
+    <a href="#mar">Beira-mar</a>
+    <a href="#globos">Globos</a>
+    <a href="#urbana">Urbana</a>
+    <a href="#carga">Carga</a>
+    <a href="#cidade">Cidade à noite</a>
+    <a href="#maglev">Maglev</a>
+    <a href="#suspenso">Suspenso</a>
+    <a href="#clara">Noite clara</a>
+  </nav>
+</header>
+<main>
+  <section class="epoca" id="epoca-recente">
+    <h2>Época recente</h2>
+    <p>Anos 30 a 60. Vapor curto e diesel de manobra, telha, tijolo e madeira. Longe do museu do século 19.</p>
+
+    <figure id="vila">
+      <img src="01-vila-manha.png" alt="Estação de telha e relógio, manhã clara, locomotivas a vapor curtas e vagões coloridos.">
+      <figcaption>
+        <h3><span class="ordem">1.</span> Vila, manhã</h3>
+        <p class="meta">Tela em repouso. Sol alto, sombras curtas, caixa d'água de madeira.</p>
+        <p class="nota">Ainda há uma locomotiva em filas de cores misturadas. No jogo ela só chega quando o trilho fecha numa cor só. O quarto botão saiu como uma chave, no lugar do trilho extra.</p>
+        <div class="cores" aria-hidden="true">
+          <i style="background:#5DB8F5"></i><i style="background:#C9533B"></i><i style="background:#F3E7D3"></i><i style="background:#7CC266"></i>
+        </div>
+      </figcaption>
+    </figure>
+
+    <figure id="tijolo">
+      <img src="02-patio-tijolo.png" alt="Pátio de carga com armazém de tijolo ao entardecer, vagões abertos coloridos e trilhos vazios brilhando em verde.">
+      <figcaption>
+        <h3><span class="ordem">2.</span> Pátio de tijolo, tarde</h3>
+        <p class="meta">Arraste: trilhos válidos em verde e um brilho no meio do pátio, no lugar do fantasma.</p>
+        <p class="nota">O fantasma ficou borrado, e locomotivas pequenas ocupam filas que ainda estão misturadas.</p>
+        <div class="cores" aria-hidden="true">
+          <i style="background:#F6C89A"></i><i style="background:#C46A4A"></i><i style="background:#ABA295"></i><i style="background:#7CFFB2"></i>
+        </div>
+      </figcaption>
+    </figure>
+
+    <figure id="mar">
+      <img src="03-beira-mar.png" alt="Estação de madeira à beira-mar, farol, pôr do sol, locomotiva a vapor com fumaça e sinal verde.">
+      <figcaption>
+        <h3><span class="ordem">3.</span> Beira-mar, fim de tarde</h3>
+        <p class="meta">Trilho pronto: sinal verde, vapor na chaminé, fila de vagões azuis ao lado.</p>
+        <p class="nota">A locomotiva ficou no trilho de cima, ainda não engatada na fila azul.</p>
+        <div class="cores" aria-hidden="true">
+          <i style="background:#E7D3B0"></i><i style="background:#6EB4D6"></i><i style="background:#F2A65A"></i><i style="background:#3A86F2"></i>
+        </div>
+      </figcaption>
+    </figure>
+
+    <figure id="globos">
+      <img src="04-noite-globos.png" alt="Estação noturna com janelas âmbar, lua cheia, postes de globo e locomotivas a vapor enfileiradas à esquerda.">
+      <figcaption>
+        <h3><span class="ordem">4.</span> Noite de globos</h3>
+        <p class="meta">Beco sem saída: sinais vermelhos e halo nos botões de ajuda.</p>
+        <p class="nota">As locomotivas formam uma coluna à esquerda, separadas dos vagões, em vez de entrar na frente da fila.</p>
+        <div class="cores" aria-hidden="true">
+          <i style="background:#0B0D2E"></i><i style="background:#56307A"></i><i style="background:#FFD36B"></i><i style="background:#F4C430"></i>
+        </div>
+      </figcaption>
+    </figure>
+  </section>
+
+  <section class="epoca" id="epoca-agora">
+    <h2>Agora</h2>
+    <p>Trem de passageiros de caixa reta, diesel de linha e estação de vidro. Sem chaminé.</p>
+
+    <figure id="urbana">
+      <img src="05-plataforma-urbana.png" alt="Estação de concreto e vidro ao meio-dia, cidade baixa ao fundo e trens de passageiros coloridos com o nariz à esquerda.">
+      <figcaption>
+        <h3><span class="ordem">5.</span> Plataforma urbana, meio-dia</h3>
+        <p class="meta">Tela em repouso. Nariz à esquerda, no sinal. Cada vagão numa cor só.</p>
+        <div class="cores" aria-hidden="true">
+          <i style="background:#9FD4F5"></i><i style="background:#E6E1D6"></i><i style="background:#8FB4D6"></i><i style="background:#F4C430"></i>
+        </div>
+      </figcaption>
+    </figure>
+
+    <figure id="carga">
+      <img src="06-terminal-carga.png" alt="Terminal de carga com pórtico amarelo, locomotivas diesel e contêineres coloridos, um bloco azul em destaque.">
+      <figcaption>
+        <h3><span class="ordem">6.</span> Terminal de carga</h3>
+        <p class="meta">Arraste: bloco azul levantado, brilho no destino e trilhos de baixo em verde.</p>
+        <p class="nota">O fantasma se espalha em vários brilhos azuis, e há uma diesel em cada fila.</p>
+        <div class="cores" aria-hidden="true">
+          <i style="background:#B9D7EE"></i><i style="background:#C9C3B6"></i><i style="background:#6E7684"></i><i style="background:#F5C933"></i>
+        </div>
+      </figcaption>
+    </figure>
+
+    <figure id="cidade">
+      <img src="07-cidade-noite.png" alt="Estação de vidro à noite, trens coloridos com rastro de luz, confete e outro trem entrando pela direita.">
+      <figcaption>
+        <h3><span class="ordem">7.</span> Cidade à noite</h3>
+        <p class="meta">Partida: confete, sinais verdes e o próximo pátio entrando pela direita.</p>
+        <p class="nota">Cada trem saiu de uma cor só, em vez de uma fila de vagões, e o rastro aponta para a direita.</p>
+        <div class="cores" aria-hidden="true">
+          <i style="background:#14182E"></i><i style="background:#FFD36B"></i><i style="background:#7CFFB2"></i><i style="background:#E9434F"></i>
+        </div>
+      </figcaption>
+    </figure>
+  </section>
+
+  <section class="epoca" id="epoca-futuro">
+    <h2>Futuro</h2>
+    <p>Guia luminoso no lugar do lastro, cápsula no lugar da caldeira. Céu claro, não uma cidade escura de neon.</p>
+
+    <figure id="maglev">
+      <img src="08-maglev-manha.png" alt="Estação em arco branco, manhã, cápsulas brancas com faixas coloridas sobre trilhos luminosos.">
+      <figcaption>
+        <h3><span class="ordem">8.</span> Maglev, manhã</h3>
+        <p class="meta">Trilho luminoso, cápsula branca com a faixa na cor do puzzle, jardim no lugar do gramado solto.</p>
+        <p class="nota">Os botões de baixo saíram vazios, um sinal tem um zero, e as cores estão em faixas numa cápsula só. A caixa d'água da vila ainda aparece no campo.</p>
+        <div class="cores" aria-hidden="true">
+          <i style="background:#C9E7FF"></i><i style="background:#F4F7FB"></i><i style="background:#9AD7FF"></i><i style="background:#7EBE8A"></i>
+        </div>
+      </figcaption>
+    </figure>
+
+    <figure id="suspenso">
+      <img src="09-patio-suspenso.png" alt="Pátio futurista ao entardecer rosa, cápsulas coloridas de nariz redondo sobre guias verdes e um vagão roxo levantado.">
+      <figcaption>
+        <h3><span class="ordem">9.</span> Pátio suspenso, entardecer</h3>
+        <p class="meta">Arraste: vagão roxo levantado com brilho, guias em verde-água, jardim em volta.</p>
+        <p class="nota">O fantasma é um vagão só, sem a cópia do bloco no trilho de baixo. As guias todas acendem, não só as válidas.</p>
+        <div class="cores" aria-hidden="true">
+          <i style="background:#F3B6C8"></i><i style="background:#C9B6F0"></i><i style="background:#F7E7D4"></i><i style="background:#7CFFB2"></i>
+        </div>
+      </figcaption>
+    </figure>
+
+    <figure id="clara">
+      <img src="10-noite-clara.png" alt="Noite com lua grande atrás de uma estação em anel, vagões com janelas acesas, confete e rastros de luz.">
+      <figcaption>
+        <h3><span class="ordem">10.</span> Noite clara</h3>
+        <p class="meta">Partida conjunta: rastros de luz, confete, sinais verdes e o próximo anel entrando pela direita.</p>
+        <p class="nota">Os vagões ainda se parecem com os de hoje. O que muda de fato é a luz, o anel e a lua.</p>
+        <div class="cores" aria-hidden="true">
+          <i style="background:#120E2A"></i><i style="background:#E7E2F4"></i><i style="background:#7CFFB2"></i><i style="background:#FFF4D6"></i>
+        </div>
+      </figcaption>
+    </figure>
+  </section>
+</main>
+<footer>
+  <p>Nada disto entrou no jogo. As pranchas são para escolher. O desenho no canvas, a paleta e o corpo de cada trem vêm depois, nas que você marcar.</p>
+</footer>
+</body>
+</html>

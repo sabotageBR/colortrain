@@ -39,7 +39,7 @@ Puzzle de trens por cor para a Poki. Feito **só com HTML + JavaScript**: ES mod
   - a única URL externa é o SDK da Poki.
 - Animações usam **um relógio só** (`performance.now()`), o mesmo da agenda (`setTimeout`). O carimbo do `requestAnimationFrame` andava separado e dessincronizava a partida.
 - Texto quase todo em ícones. EN é o padrão, com PT e ES em `src/i18n/textos.js`.
-- Direção de arte (decidida em 2026-10-01): **peças com física em quase 3D**. O usuário rejeitou reskins e as pranchas de `docs/propostas/` (fora do git); toda proposta visual vai como imagem ou protótipo jogável, nunca como descrição.
+- Direção de arte (decidida em 2026-10-01): **peças com física em quase 3D**. O usuário rejeitou reskins e as pranchas de `docs/propostas/` (guardadas só como histórico, como `modelos/`); toda proposta visual vai como imagem ou protótipo jogável, nunca como descrição.
 
 ## Poki
 - O SDK entra por uma tag síncrona no `<head>`, com o comentário "Unico script externo permitido pela Poki".
