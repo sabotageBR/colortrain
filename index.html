@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Color Train</title>
+<link rel="preload" href="src/ui/fontes/fredoka-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="src/ui/estilo.css">
+</head>
+<body>
+<canvas id="cena"></canvas>
+<div id="topo" class="hud">
+  <button id="bSom" class="btn redondo" aria-label="Sound">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path class="ligado" d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="none"/><path class="ligado" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.6 7.6 0 0 1 0 11"/><path class="desligado" d="M15.5 9.5l5 5M20.5 9.5l-5 5" style="display:none"/></svg>
+  </button>
+  <div id="placa" class="placa"><span id="placaRotulo">Level</span><b id="placaNum">1</b></div>
+  <span class="espaco"></span>
+</div>
+<div id="base" class="hud">
+  <button id="bDesfazer" class="btn" aria-label="Undo">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 5L4 9.5 8.5 14"/><path d="M4.5 9.5H14a5.5 5.5 0 0 1 0 11h-3.5"/></svg>
+  </button>
+  <button id="bRecomecar" class="btn" aria-label="Restart">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12.5a7.5 7.5 0 1 1-2.4-6"/><path d="M19.5 4v5h-5"/></svg>
+  </button>
+  <button id="bDica" class="btn anuncio" aria-label="Hint">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 17.5h5M10.5 21h3"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.1 2.2h5c0-.8.4-1.6 1.1-2.2A6 6 0 0 0 12 3z"/></svg>
+    <i class="selo" aria-hidden="true"></i>
+  </button>
+  <button id="bExtra" class="btn anuncio" aria-label="Extra track">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 13.5h13M2.5 19h13"/><path d="M5 12v8.5M9 12v8.5M13 12v8.5"/><path d="M19 3v7M15.5 6.5h7"/></svg>
+    <i class="selo" aria-hidden="true"></i>
+  </button>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

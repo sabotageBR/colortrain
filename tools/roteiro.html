@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Roteiro de toque</title>
+<style>html,body{margin:0;overflow:hidden;background:#000}iframe{border:0;display:block}</style></head>
+<body><iframe id="f"></iframe>
+<script>
+// Simula o dedo no jogo (mesma origem) para os prints automaticos.
+//   ?w=390&h=844&jogo=nivel%3D1%26fixo&roteiro=arraste|selecao|partida
+const q = new URLSearchParams(location.search);
+const w = +q.get('w') || 390, h = +q.get('h') || 844;
+const f = document.getElementById('f');
+f.style.width = w + 'px'; f.style.height = h + 'px';
+f.src = '../index.html?' + (q.get('jogo') || 'nivel=1&fixo');
+const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+f.onload = async () => {
+  await espera(700);
+  const win = f.contentWindow, doc = f.contentDocument;
+  const cv = doc.getElementById('cena');
+  const ct = win.__ct;
+  const lay = ct.cena.layout;
+  const ev = (tipo, x, y) => cv.dispatchEvent(new win.PointerEvent(tipo, { clientX: x, clientY: y, pointerId: 1, bubbles: true, isPrimary: true, pointerType: 'touch' }));
+  const centro = (i) => { const t = ct.J.st.trilhos[i]; const p = ct.cena.posVagao(t[0].id); return { x: p.x, y: p.y - lay.L * 0.3 }; };
+  const r = q.get('roteiro') || 'selecao';
+  const a = +(q.get('a') || 2), b = +(q.get('b') || 1);
+  if (r === 'selecao') { const p = centro(a); ev('pointerdown', p.x, p.y); ev('pointerup', p.x, p.y); }
+  if (r === 'arraste') {
+    const p = centro(a); ev('pointerdown', p.x, p.y);
+    const alvoY = lay.trilhos[b].yb - lay.L * 0.3, alvoX = lay.xVaga(b, ct.J.st.trilhos[b].length);
+    for (let k = 1; k <= 12; k++) { await espera(16); ev('pointermove', p.x + (alvoX - p.x) * k / 12, p.y + (alvoY - p.y) * k / 12); }
+  }
+  if (r === 'jogar') {
+    const p = centro(a); ev('pointerdown', p.x, p.y); ev('pointerup', p.x, p.y);
+    await espera(120);
+    const y = lay.trilhos[b].yb - lay.L * 0.3; ev('pointerdown', lay.xVaga(b, 1), y); ev('pointerup', lay.xVaga(b, 1), y);
+  }
+};
+</script></body></html>
