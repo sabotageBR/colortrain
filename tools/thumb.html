@@ -3,109 +3,191 @@
 <style>html,body{margin:0;overflow:hidden;background:#000}canvas{display:block;width:100vw;height:100vh}</style></head>
 <body><canvas id="c"></canvas>
 <script type="module">
-// Thumb da Poki desenhada com as pecas do proprio jogo (quase 3D, cargas com
-// fisica congelada no meio do arranque). Regras (developers.poki.com/guide/
-// game-thumbnail): 1:1, sangrada, sem texto, um objeto principal, sugerir
-// movimento, contraste com o fundo #83FFE7 do site. ?opcao=a|b|c (tamanho = janela)
-import { desenharVagao, desenharLoco, desenharSanfona, desenharEngate, desenharSombra, PINTURAS, caminhoRet } from '../src/render/pecas.js';
+// Thumb v3 da Poki: mostra o puzzle, nao so o trem. A v2 (trem subindo uma
+// rampa) nao dizia o que se faz no jogo. Agora e um quadro de uma partida de
+// verdade, com o cenario e as pecas do proprio jogo:
+//   - um trem pronto (locomotiva, sinal verde, fumaca): o objetivo;
+//   - um bloco da mesma cor no ar, preso pela mao, com o rastro de onde saiu;
+//   - o destino brilhando, com o fantasma onde o bloco vai engatar;
+//   - o resto do patio com cores misturadas: o que falta separar.
+// Regras (developers.poki.com/guide/game-thumbnail): 1:1, sangrada, sem texto,
+// um objeto principal, sugerir movimento, contraste com o fundo #83FFE7 do
+// site, legivel tambem nos tiles pequenos.
+// ?opcao=a|b|c (tamanho = ?s=, padrao 1256)
+import { calcularLayout } from '../src/render/layout.js';
+import { desenharCenario } from '../src/render/cenario.js';
+import { desenharVagao, desenharLoco, desenharSanfona, desenharEngate, desenharSombra, desenharLuzSinal, desenharMao, pontaChamine, caminhoRet, PINTURAS } from '../src/render/pecas.js';
 import { TEMAS } from '../src/render/tema.js';
 import { criarCarga } from '../src/render/fisica.js';
 import { criarRng } from '../src/core/rng.js';
 
 const q = new URLSearchParams(location.search);
-const opcao = q.get('opcao') || 'b';
+const opcao = q.get('opcao') || 'a';
 const S = Math.max(64, parseInt(q.get('s') || '1256', 10));
+
+// cores: 0 vermelho (tanque), 2 amarelo (areia), 5 azul (tanque), 6 roxo (barris)
+// cada trilho: [indice, cores paradas, vaga inicial]. origem: o bloco saiu da
+// frente dela (sobra o resto da fila); destino: ja tem um vagao da cor do
+// bloco; pronto: o trem completo com a locomotiva
+// sem o predio da estacao: o bloco no ar voa sobre o ceu limpo. escala: o
+// bloco no ar fica maior (mais perto da camera) para ser o objeto principal
+const OPCOES = {
+  // dia na campina: bloco de areia contra o ceu azul
+  a: { tema: 'campina', escala: 1.3, origem: [0, [5], 2], destino: [1, [2], 0], pronto: [2, [0, 0, 0], 0], bloco: [2, 2] },
+  // por do sol (a paleta da thumb v2): bloco de areia contra o ceu roxo e rosa
+  b: {
+    tema: 'campina', escala: 1.3, origem: [0, [5], 2], destino: [1, [2], 0], pronto: [2, [0, 0, 0], 0], bloco: [2, 2],
+    ceu: ['#3B1E6E', '#C2457A', '#FF9E5E'], horizonte: { forma: 'morros', longe: '#9A4C86', perto: '#5A2E63' }, nuvens: 0,
+    luz: '#FF8A5C',
+  },
+  // noite de festa: o mais contrastado com o site claro da Poki
+  c: { tema: 'festa', escala: 1.3, origem: [0, [2], 2], destino: [1, [5], 0], pronto: [2, [0, 0, 0], 0], bloco: [5, 5] },
+};
+const K = OPCOES[opcao] || OPCOES.a;
+// ceu limpo atras do bloco: sem sol nem lua (pedido do usuario na v2), sem o
+// marco do mundo e sem o halo dos postes
+const tema = { ...TEMAS[K.tema], astro: null, marco: null, luzes: false };
+for (const k of ['ceu', 'horizonte', 'nuvens']) if (K[k] !== undefined) tema[k] = K[k];
+
+// a cena e montada num quadrado virtual de V px e ampliada para S
+const V = 500;
+const dpr = S / V;
+const lay = calcularLayout({ W: V, H: V, topo: 70, base: V, n: 3, cap: 3, margem: 6 });
+lay.fachada.alt = 0;
+const L = lay.L, P = lay.P;
+const r = criarRng(7);
+
 const cv = document.getElementById('c');
 cv.width = S; cv.height = S;
 const ctx = cv.getContext('2d');
-const r = criarRng(42);
-const CEUS = {
-  a: { ceu: ['#4C9FE6', '#8FCBF2', '#DCEFF8'], morros: ['#A9D9AE', '#6DB873'], chao: '#79B86A', tema: TEMAS.campina, sol: '#FFE68A' },
-  b: { ceu: ['#3B1E6E', '#C2457A', '#FF9E5E'], morros: ['#7A3D78', '#4A2653'], chao: '#3E2A5C', tema: TEMAS.campina, sol: '#FFD37A' },
-  c: { ceu: ['#120F33', '#2B1E5C', '#5B3B7C'], morros: ['#352C62', '#221C48'], chao: '#1E2446', tema: TEMAS.festa, sol: '#FFF1C4' },
-};
-const K = CEUS[opcao];
-const tema = K.tema;
+ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+ctx.drawImage(desenharCenario(lay, tema, dpr), 0, 0, V, V);
 
-// ---- ceu e morros
-let gr = ctx.createLinearGradient(0, 0, 0, S * 0.7);
-gr.addColorStop(0, K.ceu[0]); gr.addColorStop(0.55, K.ceu[1]); gr.addColorStop(1, K.ceu[2]);
-ctx.fillStyle = gr; ctx.fillRect(0, 0, S, S);
-if (opcao === 'c') { for (let i = 0; i < 140; i++) { ctx.globalAlpha = 0.3 + r() * 0.7; ctx.fillStyle = '#fff'; const s = r() < 0.1 ? 3 : 1.6; ctx.fillRect(r() * S, r() * S * 0.5, s, s); } ctx.globalAlpha = 1; }
-// sem sol nem lua: o ceu fica so com o degrade e as linhas de velocidade
-function morros(y0, cor, alt, fase, freq) {
-  ctx.fillStyle = cor; ctx.beginPath(); ctx.moveTo(0, y0 + 2);
-  for (let x = 0; x <= S; x += 6) { const t = x / S; ctx.lineTo(x, y0 - alt * (0.55 + 0.3 * Math.sin(t * Math.PI * freq + fase) + 0.15 * Math.sin(t * Math.PI * freq * 2.7 + fase * 2))); }
-  ctx.lineTo(S, y0 + 2); ctx.closePath(); ctx.fill();
-}
-morros(S * 0.62, K.morros[0], S * 0.12, 0.3, 2.0);
-// estacao em silhueta no morro de tras
-ctx.fillStyle = K.morros[1];
-ctx.fillRect(S * 0.08, S * 0.5, S * 0.3, S * 0.1);
-ctx.beginPath(); ctx.moveTo(S * 0.06, S * 0.5); ctx.lineTo(S * 0.12, S * 0.44); ctx.lineTo(S * 0.34, S * 0.44); ctx.lineTo(S * 0.4, S * 0.5); ctx.closePath(); ctx.fill();
-ctx.fillStyle = opcao === 'a' ? '#F3EBDD' : '#FFD36B';
-for (const q of [0.12, 0.18, 0.28, 0.34]) ctx.fillRect(S * q, S * 0.53, S * 0.025, S * 0.035);
-morros(S * 0.66, K.morros[1], S * 0.07, 1.9, 3.2);
-ctx.fillStyle = K.chao; ctx.fillRect(0, S * 0.66, S, S);
+const carga = (cor, o = {}) => Object.assign(criarCarga(cor), { t: 1.3 + cor * 0.7, tilt: 0, tiltV: 0, bob: 0, jolt: 0, rot: 0 }, o);
 
-// ---- linhas de velocidade
-ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-ctx.lineCap = 'round';
-for (let i = 0; i < 9; i++) {
-  const y = S * (0.22 + r() * 0.5), x = S * (0.05 + r() * 0.5), w = S * (0.1 + r() * 0.2);
-  ctx.lineWidth = S * (0.004 + r() * 0.004);
-  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y - w * 0.3); ctx.stroke();
+/** Realce do trilho (igual ao da cena, mais forte para ler no tile pequeno). */
+function realce(i, cor, forca) {
+  const t = lay.trilhos[i];
+  ctx.save();
+  caminhoRet(ctx, t.xIni - L * 0.04, t.yb - L * 0.3, t.xFim - t.xIni + L * 0.08, L * 0.44, L * 0.12);
+  ctx.fillStyle = cor;
+  ctx.globalAlpha = 0.12 + 0.18 * forca;
+  ctx.fill();
+  ctx.strokeStyle = cor;
+  ctx.lineWidth = L * 0.045;
+  ctx.globalAlpha = 0.45 + 0.45 * forca;
+  ctx.stroke();
+  ctx.restore();
 }
 
-// ---- o trem em diagonal, arrancando para a direita (subindo)
-const ang = -0.3;
-const L = S * 0.18;
-const P = L * 1.1;
-const x0 = S * 0.29, y0 = S * 0.78;
+/** Fila de vagoes parados num trilho, a partir da vaga s0. */
+function fila(i, cores, s0, fis) {
+  const t = lay.trilhos[i];
+  const xs = cores.map((_, k) => lay.xVaga(i, s0 + k));
+  xs.forEach((x) => desenharSombra(ctx, x, t.yb, L, 1, tema));
+  for (let k = 0; k + 1 < cores.length; k++) {
+    if (cores[k] === cores[k + 1]) desenharSanfona(ctx, xs[k] + L / 2, xs[k + 1] - L / 2, t.yb, L, cores[k], tema);
+    else desenharEngate(ctx, xs[k] + L / 2, xs[k + 1] - L / 2, t.yb, L);
+  }
+  cores.forEach((c, k) => desenharVagao(ctx, xs[k], t.yb, c, L, tema, dpr, { roda: 0.5 + k, fis: fis ? fis(c, k) : carga(c) }));
+  return xs;
+}
+
+const [iOrig, coresOrig, sOrig] = K.origem;
+const [iDest, coresDest, sDest] = K.destino;
+const [iPronto, coresPronto, sPronto] = K.pronto;
+const tO = lay.trilhos[iOrig], tD = lay.trilhos[iDest], tP = lay.trilhos[iPronto];
+
+// destino brilhando (o arraste valido do jogo)
+realce(iDest, '#7CFFB2', 1);
+
+// sinais: verde so no trem pronto
+lay.trilhos.forEach((t, i) => desenharLuzSinal(ctx, t.xSinal, t.yb, L, i === iPronto, tema));
+
+// trilho por trilho, de cima para baixo (ordem de profundidade)
+for (let i = 0; i < lay.trilhos.length; i++) {
+  if (i === iOrig) fila(iOrig, coresOrig, sOrig, (c) => carga(c, { tilt: -0.3, jolt: 0.4 }));
+  if (i === iDest) {
+    fila(iDest, coresDest, sDest);
+    // fantasma onde o bloco vai engatar
+    K.bloco.forEach((c, k) => desenharVagao(ctx, lay.xVaga(iDest, sDest + coresDest.length + k), tD.yb, c, L, tema, dpr, { alfa: 0.45 }));
+  }
+  if (i === iPronto) {
+    desenharSombra(ctx, tP.xLoco, tP.yb, lay.Lg, 1, tema);
+    desenharLoco(ctx, tP.xLoco, tP.yb, L, tema, dpr, { aceso: true, roda: 0.7, pintura: PINTURAS[0] });
+    fila(iPronto, coresPronto, sPronto);
+  }
+}
+
+// fumaca da locomotiva pronta: circulos chapados subindo
+const ch = pontaChamine(tP.xLoco, tP.yb, L);
+for (let k = 7; k >= 0; k--) {
+  const u = k / 7;
+  const x = ch.x + u * L * 0.55 + Math.sin(u * 5) * L * 0.08;
+  const y = ch.y - u * L * 1.25;
+  ctx.fillStyle = tema.noite ? `rgba(225,220,250,${0.92 - u * 0.5})` : `rgba(255,255,255,${0.95 - u * 0.5})`;
+  ctx.beginPath();
+  ctx.arc(x, y, L * (0.07 + u * 0.15), 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// bloco no ar: logo acima da vaga de onde saiu, meio passo adiante, inclinado
+// no embalo, com o brilho de "levantado" e a carga jogada para tras
+const nB = K.bloco.length;
+const xAr = lay.xVaga(iOrig, (nB - 1) / 2) + P * 0.45;
+const yAr = tO.yb - L * 1.05;
+const ang = -0.08;
+const La = L * K.escala, Pa = P * K.escala;
+const xsAr = K.bloco.map((_, k) => xAr + (k - (nB - 1) / 2) * Pa);
+// sombra do bloco na vaga vazia da origem
+for (const x of xsAr) desenharSombra(ctx, x - P * 0.3, tO.yb, L, 0.45, tema);
 ctx.save();
-ctx.translate(x0, y0);
+ctx.translate(xAr, yAr);
 ctx.rotate(ang);
-// placa do patio e trilho
-ctx.fillStyle = 'rgba(0,0,0,0.3)';
-ctx.fillRect(-S, -L * 0.2, S * 3, L * 0.9);
-ctx.fillStyle = '#3A3F44';
-caminhoRet(ctx, -S, -L * 0.27, S * 3, L * 0.37, L * 0.06); ctx.fill();
-ctx.fillStyle = '#4A5056';
-for (let x = -S; x < S * 2; x += L * 0.33) ctx.fillRect(x, -L * 0.22, L * 0.08, L * 0.27);
-for (const yy of [-L * 0.16 - L * 0.035, 0]) { ctx.fillStyle = '#5A5F66'; ctx.fillRect(-S, yy + L * 0.02, S * 3, L * 0.03); ctx.fillStyle = '#B9BFCC'; ctx.fillRect(-S, yy, S * 3, L * 0.035); }
-const cores = [0, 2, 6];
-const xs = cores.map((c, i) => 1.32 * L / 2 + L * 0.1 + P / 2 + i * P);
-desenharSombra(ctx, 0, 0, L * 1.3, 1, tema);
-xs.forEach((xx) => desenharSombra(ctx, xx, 0, L, 1, tema));
-for (let i = 0; i + 1 < cores.length; i++) desenharEngate(ctx, xs[i] + L / 2, xs[i + 1] - L / 2, 0, L);
-xs.forEach((xx, i) => {
-  const f = criarCarga(cores[i]);
-  // arranque: liquido jogado para tras, areia saltando, barris rolando
-  f.tilt = 0.42; f.tiltV = 1.5; f.jolt = 0.9; f.rot = 0.9; f.t = 2.1;
-  desenharVagao(ctx, xx, 0, cores[i], L, tema, 1, { roda: 0.4 + i, fis: f });
-});
-desenharLoco(ctx, 0, 0, L, tema, 1, { aceso: true, roda: 0.9, pintura: PINTURAS[0] });
-// faiscas nas rodas (patinando)
-ctx.strokeStyle = '#FFD65A'; ctx.lineWidth = S * 0.004; ctx.lineCap = 'round';
-for (let i = 0; i < 10; i++) { const a = -Math.PI * (0.2 + r() * 0.6); const d = L * (0.1 + r() * 0.3); ctx.beginPath(); ctx.moveTo(L * 0.18, -L * 0.05); ctx.lineTo(L * 0.18 + Math.cos(a) * d, -L * 0.05 + Math.sin(a) * d); ctx.stroke(); }
-// graos de areia voando do segundo vagao
-ctx.fillStyle = '#F5C933';
-for (let i = 0; i < 16; i++) { const px = xs[1] + (r() - 0.5) * L * 0.9, py = -L * 0.75 - r() * L * 0.35; const s = L * (0.02 + r() * 0.02); ctx.fillRect(px, py, s, s); }
+ctx.translate(-xAr, -yAr);
+for (let k = 0; k + 1 < nB; k++) desenharSanfona(ctx, xsAr[k] + La / 2, xsAr[k + 1] - La / 2, yAr, La, K.bloco[k], tema);
+K.bloco.forEach((c, k) => desenharVagao(ctx, xsAr[k], yAr, c, La, tema, dpr, { roda: 1.2 + k, brilho: 1, noAr: true, fis: carga(c, { tilt: 0.45, jolt: 1, rot: 1.1, t: 2.2 + k }) }));
+// graos de areia saltando da carga
+if (K.bloco[0] === 2) {
+  ctx.fillStyle = '#F5C933';
+  for (let i = 0; i < 22; i++) {
+    const px = xsAr[0] - La * 0.6 + r() * (xsAr[nB - 1] - xsAr[0] + La * 1.1);
+    const py = yAr - La * 0.84 - r() * La * 0.42;
+    const s = L * (0.025 + r() * 0.03);
+    ctx.fillRect(px, py, s, s);
+  }
+}
+// tracos de movimento atras do bloco (ele vai para a direita e para baixo)
+ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+ctx.lineCap = 'round';
+ctx.lineWidth = L * 0.05;
+for (const [dy, w] of [[-0.62, 0.42], [-0.4, 0.6], [-0.18, 0.36]]) {
+  const x1 = xsAr[0] - La * 0.72, y1 = yAr + dy * La;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x1 - w * L, y1 - w * L * 0.22);
+  ctx.stroke();
+}
 ctx.restore();
 
-// ---- fumaca: circulos chapados subindo para tras (esquerda)
-const cx = x0 + Math.cos(ang) * (-0.415 * L) - Math.sin(ang) * (-0.86 * L);
-const cy = y0 + Math.sin(ang) * (-0.415 * L) + Math.cos(ang) * (-0.86 * L);
-for (let i = 9; i >= 0; i--) {
-  const t = i / 9;
-  const px = cx - t * S * 0.3 + Math.sin(t * 6) * S * 0.02, py = cy - t * S * 0.34;
-  const rr = S * (0.025 + t * 0.055);
-  ctx.fillStyle = `rgba(255,255,255,${0.92 - t * 0.6})`;
-  ctx.beginPath(); ctx.arc(px, py, rr, 0, Math.PI * 2); ctx.fill();
+// mao segurando o bloco pela frente (o corpo da mao cai sobre a vaga vazia)
+desenharMao(ctx, xsAr[0] + La * 0.05, yAr - La * 0.3, La / 40, true);
+
+ctx.setTransform(1, 0, 0, 1, 0, 0);
+// luz do por do sol esquentando o patio cinza
+if (K.luz) {
+  ctx.globalCompositeOperation = 'soft-light';
+  ctx.fillStyle = K.luz;
+  ctx.globalAlpha = 0.35;
+  ctx.fillRect(0, 0, S, S);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
 }
-// vinheta suave para segurar o olhar no trem
-const vg = ctx.createRadialGradient(S * 0.45, S * 0.6, S * 0.3, S * 0.5, S * 0.55, S * 0.85);
-vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.28)');
-ctx.fillStyle = vg; ctx.fillRect(0, 0, S, S);
+// vinheta suave para segurar o olhar no centro
+const vg = ctx.createRadialGradient(S * 0.5, S * 0.48, S * 0.34, S * 0.5, S * 0.5, S * 0.8);
+vg.addColorStop(0, 'rgba(0,0,0,0)');
+vg.addColorStop(1, 'rgba(0,0,0,0.22)');
+ctx.fillStyle = vg;
+ctx.fillRect(0, 0, S, S);
 document.title = 'pronto';
 </script></body></html>
