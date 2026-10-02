@@ -53,6 +53,7 @@ Puzzle de trens por cor para a Poki. Feito **só com HTML + JavaScript**: ES mod
 - `npm test`: testes do node (regras, níveis, wrapper, estilo).
 - `npm run servir`: servidor em http://127.0.0.1:5340/. Parâmetros locais: `?nivel=12&tema=festa&auto=300&fixo&semanuncio&garagem` (temas: campina, porto, deserto, serra, metropole, festa, inverno, tropico, outono, aurora).
 - `tools/vitrine-pecas.html`: as 8 cargas em repouso e em movimento, mais a locomotiva (`?tema=`).
+- `node tools/thumb.mjs`: thumbs da Poki (`tools/thumb.html`) em 1256 e 628, nas opções a, b e c em `marketing/thumb/opcoes/`. A oficial (`marketing/thumb/color-train-*`) é a b, e o JPG sai com `convert -quality 90`. A thumb mostra o puzzle (bloco no ar, destino com fantasma, trem pronto), não só um trem. `node tools/thumb.mjs modelo-1 modelo-2` gera as thumbs em estilo ícone (`tools/thumb-icone.html`), feitas a partir dos modelos do usuário: trem cartum em 3D projetado, cena sangrada e sem moldura.
 - `npm run sdkcheck`: banco do SDK falso (`tools/sdkcheck.html`) nos cenários normal, recusa, bloqueado, pendente e lsquebrado.
 - `npm run poki`: testes, depois `dist/`, verificação, zip em `dist-poki/color-train-<versao>.zip`, o sdkcheck sobre a build e os prints nos tamanhos de iframe da Poki.
 - Rode um Chrome headless por vez. Use `spawn` assíncrono nas ferramentas, porque o servidor delas roda no mesmo processo.

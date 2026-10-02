@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>thumb icone</title>
+<style>html,body{margin:0;overflow:hidden;background:#000}canvas{display:block;width:100vw;height:100vh}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+// Thumbs no estilo icone (cartum de contorno grosso), a partir dos modelos
+// que o usuario mandou em 2026-10-02 (color_train_modelo_1 e _2):
+//   1: dia, trem em tres quartos numa curva, nuvem de fumaca grande;
+//   2: por do sol, trem de perfil, painel com as quatro cores embaixo.
+// Os modelos vinham com moldura (faixas e margem azul-marinho); a Poki pede
+// quadro sangrado, sem borda nem letterbox, e ela mesma arredonda os cantos
+// (developers.poki.com/guide/game-thumbnail). Aqui a cena vai ate a borda.
+// O trem e montado em 3D de verdade (caixas e cilindros projetados) para o
+// volume e o contorno sairem certos em qualquer angulo.
+// ?modelo=1|2 (tamanho = ?s=, padrao 628)
+const q = new URLSearchParams(location.search);
+const modelo = q.get('modelo') || '1';
+const S = Math.max(64, parseInt(q.get('s') || '628', 10));
+const V = 628;
+const cv = document.getElementById('c');
+cv.width = S; cv.height = S;
+const ctx = cv.getContext('2d');
+ctx.setTransform(S / V, 0, 0, S / V, 0, 0);
+ctx.lineJoin = 'round';
+ctx.lineCap = 'round';
+
+const TINTA = '#1E1A33';
+
+// ---------- cor ----------
+const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+const rgb = (a) => `rgb(${a.map((v) => Math.round(Math.max(0, Math.min(255, v)))).join(',')})`;
+/** Clareia (k > 0) ou escurece (k < 0) puxando para branco ou para um roxo escuro. */
+function tom(c, k) {
+  const a = hex(c);
+  const alvo = k > 0 ? [255, 255, 255] : [30, 20, 60];
+  const t = Math.abs(k);
+  return rgb(a.map((v, i) => v + (alvo[i] - v) * t));
+}
+
+// ---------- 3D minimo ----------
+// mundo: x ao longo do trilho, y para cima, z para a camera
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm = (a) => { const l = Math.hypot(...a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+
+let CAM = null;
+/** Camera em pos olhando para alvo; foco em px; centro da tela em (cx, cy). */
+function camera(pos, alvo, foco, cx, cy) {
+  const f = norm(sub(alvo, pos));
+  const r = norm(cross(f, [0, 1, 0]));
+  const u = cross(r, f);
+  CAM = { pos, f, r, u, foco, cx, cy };
+}
+/** Ajusta foco e centro para os pontos ocuparem de x0 a x1, com a base em yBase. */
+function enquadrar(pts, x0, x1, yBase) {
+  Object.assign(CAM, { foco: 1, cx: 0, cy: 0 });
+  const pp = pts.map(proj);
+  const umin = Math.min(...pp.map((p) => p[0])), umax = Math.max(...pp.map((p) => p[0]));
+  const vmax = Math.max(...pp.map((p) => p[1]));
+  CAM.foco = (x1 - x0) / (umax - umin);
+  CAM.cx = x0 - umin * CAM.foco;
+  CAM.cy = yBase - vmax * CAM.foco;
+}
+function proj(p) {
+  const d = sub(p, CAM.pos);
+  const z = dot(d, CAM.f);
+  return [CAM.cx + (dot(d, CAM.r) / z) * CAM.foco, CAM.cy - (dot(d, CAM.u) / z) * CAM.foco, z];
+}
+// luz vindo de cima, da frente e um pouco da direita (lado do trem aceso,
+// frente dos vagoes na sombra, como nos modelos)
+const LUZ = norm([0.35, 0.9, 0.75]);
+
+/** Peca: transforma pontos locais (x ao longo, y alto, z largura) pela pose. */
+function pose(x, z, ang) {
+  const c = Math.cos(ang), s = Math.sin(ang);
+  return (p) => [x + p[0] * c + p[2] * s, p[1], z - p[0] * s + p[2] * c];
+}
+const rot = (ang) => (n) => { const c = Math.cos(ang), s = Math.sin(ang); return [n[0] * c + n[2] * s, n[1], -n[0] * s + n[2] * c]; };
+
+function caminho(pts) {
+  ctx.beginPath();
+  pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+  ctx.closePath();
+}
+function casco(pts) {
+  // fecho convexo (monotone chain) para o contorno grosso da silhueta
+  const p = pts.map((a) => [a[0], a[1]]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], hi = [];
+  for (const a of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], a) <= 0) lo.pop(); lo.push(a); }
+  for (let i = p.length - 1; i >= 0; i--) { const a = p[i]; while (hi.length >= 2 && cr(hi[hi.length - 2], hi[hi.length - 1], a) <= 0) hi.pop(); hi.push(a); }
+  return lo.slice(0, -1).concat(hi.slice(0, -1));
+}
+
+/**
+ * Solido convexo: faces { pts (mundo), n (normal mundo), cor, linha? }.
+ * Pinta as faces viradas para a camera com tom pela luz, risca as arestas
+ * internas finas e a silhueta grossa.
+ */
+function solido(faces, o = {}) {
+  const vis = faces.filter((f) => dot(f.n, sub(CAM.pos, f.pts[0])) > 0);
+  const todos = [];
+  for (const f of vis) {
+    const pp = f.pts.map(proj);
+    todos.push(...pp);
+    const l = dot(f.n, LUZ);
+    const k = f.plano ? 0 : (l > 0.55 ? 0.16 : l > 0.1 ? 0 : -0.16 + l * 0.2);
+    caminho(pp);
+    ctx.fillStyle = tom(f.cor, k + (o.tom || 0));
+    ctx.fill();
+    if (f.linha !== false) {
+      ctx.strokeStyle = TINTA;
+      ctx.lineWidth = o.fina ?? 2.2;
+      ctx.stroke();
+    } else {
+      // costura das faixas do cilindro: mesma cor, para nao abrir fresta
+      ctx.strokeStyle = ctx.fillStyle;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+    if (f.depois) f.depois(f);
+  }
+  if (o.contorno !== false && todos.length) {
+    caminho(casco(todos));
+    ctx.strokeStyle = TINTA;
+    ctx.lineWidth = o.grossa ?? 4.2;
+    ctx.stroke();
+  }
+}
+
+/** Caixa local [x0,x1]x[y0,y1]x[z0,z1] posta pela pose T (rotacao R). */
+function caixa(T, R, x0, x1, y0, y1, z0, z1, cor, extra = {}) {
+  const P = (x, y, z) => T([x, y, z]);
+  const F = (n, pts, k) => ({ n: R(n), pts, cor: (extra.cores && extra.cores[k]) || cor, depois: extra[k] });
+  return [
+    F([0, 1, 0], [P(x0, y1, z0), P(x1, y1, z0), P(x1, y1, z1), P(x0, y1, z1)], 'topo'),
+    F([0, -1, 0], [P(x0, y0, z0), P(x0, y0, z1), P(x1, y0, z1), P(x1, y0, z0)], 'base'),
+    F([-1, 0, 0], [P(x0, y0, z0), P(x0, y1, z0), P(x0, y1, z1), P(x0, y0, z1)], 'frente'),
+    F([1, 0, 0], [P(x1, y0, z0), P(x1, y0, z1), P(x1, y1, z1), P(x1, y1, z0)], 'tras'),
+    F([0, 0, 1], [P(x0, y0, z1), P(x0, y1, z1), P(x1, y1, z1), P(x1, y0, z1)], 'lado'),
+    F([0, 0, -1], [P(x0, y0, z0), P(x1, y0, z0), P(x1, y1, z0), P(x0, y1, z0)], 'outro'),
+  ];
+}
+
+/**
+ * Cilindro de eixo local 'x' (caldeira) ou 'y' (chamine) ou 'z' (roda).
+ * c = centro local, r = raio, a0..a1 ao longo do eixo.
+ */
+function cilindro(T, R, eixo, c, r, a0, a1, cor, n = 28, extra = {}) {
+  const ponto = (ang, a) => {
+    const u = Math.cos(ang) * r, v = Math.sin(ang) * r;
+    if (eixo === 'x') return T([a, c[1] + v, c[2] + u]);
+    if (eixo === 'y') return T([c[0] + u, a, c[2] + v]);
+    return T([c[0] + u, c[1] + v, a]);
+  };
+  const nrm = (ang) => {
+    const u = Math.cos(ang), v = Math.sin(ang);
+    if (eixo === 'x') return R([0, v, u]);
+    if (eixo === 'y') return R([u, 0, v]);
+    return R([u, v, 0]);
+  };
+  const ax = eixo === 'x' ? [1, 0, 0] : eixo === 'y' ? [0, 1, 0] : [0, 0, 1];
+  const faces = [];
+  for (let i = 0; i < n; i++) {
+    const g0 = (i / n) * Math.PI * 2, g1 = ((i + 1) / n) * Math.PI * 2;
+    faces.push({ n: nrm((g0 + g1) / 2), pts: [ponto(g0, a0), ponto(g1, a0), ponto(g1, a1), ponto(g0, a1)], cor, linha: false });
+  }
+  const tampa = (a, s) => {
+    const pts = [];
+    for (let i = 0; i < n; i++) pts.push(ponto((i / n) * Math.PI * 2, a));
+    if (s < 0) pts.reverse();
+    return { n: R(ax.map((v) => v * s)), pts, cor: extra.corTampa || cor, depois: s < 0 ? extra.tampaIni : extra.tampaFim, plano: extra.tampaPlana };
+  };
+  if (!extra.semTampa) faces.push(tampa(a0, -1), tampa(a1, 1));
+  return faces;
+}
+
+/** Circulo num plano local (para aros, farol, emblema), ja projetado. */
+function circulo3(T, eixo, c, r, a, n = 36) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const g = (i / n) * Math.PI * 2, u = Math.cos(g) * r, v = Math.sin(g) * r;
+    pts.push(proj(eixo === 'x' ? T([a, c[1] + v, c[2] + u]) : eixo === 'z' ? T([c[0] + u, c[1] + v, a]) : T([c[0] + u, a, c[2] + v])));
+  }
+  return pts;
+}
+function pinta(pts, cor, linha) {
+  caminho(pts);
+  if (cor) { ctx.fillStyle = cor; ctx.fill(); }
+  if (linha) { ctx.strokeStyle = TINTA; ctx.lineWidth = linha; ctx.stroke(); }
+}
+
+// ---------- pecas do trem ----------
+// proporcao de brinquedo, como nos modelos: vagao quase tao alto quanto longo
+const VAGAO = 2.7, PASSO = 3.0, LOCO = 4.15;
+const C = {
+  vermelho: '#E8262F', amarelo: '#FFC21A', azul: '#1E7BF0', verde: '#47C23A', preto: '#2A2840',
+  ouro: '#FFC928', vidro: '#4FB4FF', cinza: '#5B5F78', branco: '#FFFFFF',
+};
+
+/** Roda vista de lado (no plano z = zl local), com aro e cubo. */
+function roda(T, R, x, y, r, zl, aro, cubo, raios) {
+  const esp = 0.22;
+  solido(cilindro(T, R, 'z', [x, y], r, zl - esp, zl, C.preto, 30, {
+    tampaPlana: true,
+    tampaFim: () => {
+      pinta(circulo3(T, 'z', [x, y], r * 0.86, zl), aro, 0);
+      pinta(circulo3(T, 'z', [x, y], r * 0.6, zl), tom(aro, -0.12), 1.6);
+      if (raios) {
+        ctx.strokeStyle = TINTA;
+        ctx.lineWidth = 1.6;
+        for (let k = 0; k < raios; k++) {
+          const g = (k / raios) * Math.PI * 2 + 0.3;
+          const a = proj(T([x + Math.cos(g) * r * 0.2, y + Math.sin(g) * r * 0.2, zl]));
+          const b = proj(T([x + Math.cos(g) * r * 0.58, y + Math.sin(g) * r * 0.58, zl]));
+          ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+        }
+      }
+      pinta(circulo3(T, 'z', [x, y], r * 0.26, zl), cubo, 1.6);
+      // brilho do aro
+      const p = circulo3(T, 'z', [x, y], r * 0.73, zl, 36).slice(19, 27);
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      p.forEach((a, i) => (i ? ctx.lineTo(a[0], a[1]) : ctx.moveTo(a[0], a[1])));
+      ctx.stroke();
+    },
+  }), { grossa: 3.4 });
+}
+
+/** Vagao fechado com nervuras e o emblema de anel na lateral. */
+function vagao(x, z, ang, cor) {
+  const T = pose(x, z, ang), R = rot(ang);
+  const L = VAGAO;
+  // chassi
+  solido(caixa(T, R, 0.12, L - 0.12, 0.55, 0.92, -0.9, 0.9, C.preto));
+  // caixa
+  solido(caixa(T, R, 0, L, 0.92, 3.0, -1.0, 1.0, cor, {
+    cores: { topo: tom(cor, 0.25) },
+    lado: () => {
+      const P = (a, b) => proj(T([a, b, 1.0]));
+      // faixa de luz no alto e nervuras verticais
+      pinta([P(0.08, 2.86), P(L - 0.08, 2.86), P(L - 0.08, 2.62), P(0.08, 2.62)], tom(cor, 0.28));
+      ctx.strokeStyle = tom(cor, -0.3);
+      ctx.lineWidth = 2;
+      for (const a of [0.42, L - 0.42]) {
+        const p0 = P(a, 1.06), p1 = P(a, 2.84);
+        ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+      }
+      // emblema: anel arredondado branco
+      const cx = L / 2, cy = 1.96, w = 0.52, h = 0.58, rr = 0.34, e = 0.21;
+      const anel = (ww, hh, r0) => {
+        const pts = [];
+        const cantos = [[cx + ww - r0, cy + hh - r0, 0], [cx - ww + r0, cy + hh - r0, Math.PI / 2], [cx - ww + r0, cy - hh + r0, Math.PI], [cx + ww - r0, cy - hh + r0, Math.PI * 1.5]];
+        for (const [ax, ay, g0] of cantos) for (let i = 0; i <= 6; i++) { const g = g0 + (i / 6) * Math.PI / 2; pts.push(P(ax + Math.cos(g) * r0, ay + Math.sin(g) * r0)); }
+        return pts;
+      };
+      const fora = anel(w, h, rr), dentro = anel(w - e, h - e, rr - e * 0.7);
+      ctx.beginPath();
+      fora.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+      ctx.closePath();
+      dentro.slice().reverse().forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+      ctx.closePath();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fill('nonzero');
+      ctx.strokeStyle = tom(cor, -0.35);
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+    },
+    frente: (f) => {
+      const P = (b, c) => proj(T([0, b, c]));
+      pinta([P(2.86, -0.92), P(2.86, 0.92), P(2.62, 0.92), P(2.62, -0.92)], tom(cor, 0.12));
+    },
+  }));
+  // rodas do lado da camera
+  for (const a of [0.66, L - 0.66]) roda(T, R, a, 0.46, 0.42, 1.02, '#3A3852', '#E8ECF5', 0);
+}
+
+/**
+ * Locomotiva a vapor (frente em x = 0, vai para -x).
+ * caldeira: cor do corpo da caldeira; frente: cor da caixa de fumaca.
+ */
+function locomotiva(x, z, ang, o) {
+  const T = pose(x, z, ang), R = rot(ang);
+  // chassi
+  solido(caixa(T, R, 0.2, LOCO, 0.55, 1.0, -0.92, 0.92, C.preto));
+  // cabine (vermelha, teto preto)
+  solido(caixa(T, R, 2.4, LOCO, 1.0, 3.25, -1.0, 1.0, C.vermelho, {
+    cores: { topo: C.preto },
+    lado: () => {
+      const P = (a, b) => proj(T([a, b, 1.0]));
+      pinta([P(2.75, 2.95), P(3.8, 2.95), P(3.8, 1.9), P(2.75, 1.9)], C.vidro, 2.2);
+      pinta([P(2.87, 2.85), P(3.2, 2.85), P(3.0, 2.05), P(2.87, 2.05)], 'rgba(255,255,255,0.7)');
+      pinta([P(2.45, 1.65), P(LOCO - 0.05, 1.65), P(LOCO - 0.05, 1.45), P(2.45, 1.45)], C.ouro);
+    },
+    frente: () => {
+      const P = (b, c) => proj(T([2.4, b, c]));
+      pinta([P(2.95, -0.7), P(2.95, 0.7), P(2.35, 0.7), P(2.35, -0.7)], C.vidro, 2);
+    },
+  }));
+  solido(caixa(T, R, 2.25, LOCO + 0.15, 3.25, 3.55, -1.15, 1.15, C.preto, { cores: { topo: '#4A4866' } }));
+  // caldeira
+  solido(cilindro(T, R, 'x', [0, 1.85, 0], 0.82, 0.55, 2.5, o.caldeira, 32));
+  // cintas douradas
+  for (const a of [1.2, 1.9]) solido(cilindro(T, R, 'x', [0, 1.85, 0], 0.85, a, a + 0.14, C.ouro, 32, { semTampa: true }), { grossa: 1.8 });
+  // caixa de fumaca na frente, com o aro dourado e o farol
+  solido(cilindro(T, R, 'x', [0, 1.85, 0], 0.9, 0.1, 0.6, o.frente, 32, {
+    tampaIni: () => {
+      pinta(circulo3(T, 'x', [0, 1.85, 0], 0.78, 0.1), tom(o.frente, 0.1), 0);
+    },
+  }));
+  // farol saltado na frente
+  solido(cilindro(T, R, 'x', [0, 2.0, 0], 0.36, -0.14, 0.12, C.ouro, 28, {
+    tampaIni: () => {
+      pinta(circulo3(T, 'x', [0, 2.0, 0], 0.24, -0.14), '#FFF6C2', 0);
+      pinta(circulo3(T, 'x', [0, 2.08, -0.09], 0.09, -0.14), '#FFFFFF', 0);
+    },
+  }), { grossa: 3 });
+  // chamine: tubo e boca larga
+  solido(cilindro(T, R, 'y', [0.7, 0, 0], 0.32, 2.45, 3.45, C.preto, 24));
+  solido(cilindro(T, R, 'y', [0.7, 0, 0], 0.52, 3.35, 3.9, C.preto, 24, { corTampa: '#0F0E1C', tampaPlana: true }));
+  // limpa-trilhos: cunha vermelha com ripas
+  {
+    const P = (a, b, c) => T([a, b, c]);
+    const fr = [P(-0.75, 0.12, -0.95), P(-0.75, 0.12, 0.95), P(0.25, 1.05, 0.95), P(0.25, 1.05, -0.95)];
+    const ladoZ = [P(-0.75, 0.12, 0.95), P(0.25, 0.12, 0.95), P(0.25, 1.05, 0.95)];
+    const n = norm(cross(sub(fr[1], fr[0]), sub(fr[3], fr[0])));
+    solido([
+      { n: n[0] > 0 ? n.map((v) => -v) : n, pts: fr, cor: C.vermelho, depois: () => {
+        ctx.strokeStyle = TINTA;
+        ctx.lineWidth = 2.4;
+        for (let k = 1; k < 6; k++) {
+          const zz = -0.95 + (k / 6) * 1.9;
+          const a = proj(P(-0.75, 0.12, zz)), b = proj(P(0.25, 1.05, zz));
+          ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+        }
+      } },
+      { n: R([0, 0, 1]), pts: ladoZ, cor: C.vermelho },
+      { n: R([0, 1, 0]), pts: [P(0.25, 1.05, -0.95), P(0.25, 1.05, 0.95), P(0.35, 1.05, 0.95), P(0.35, 1.05, -0.95)], cor: C.vermelho },
+    ]);
+  }
+  // rodas: pequena na frente, duas motrizes grandes sob a cabine
+  roda(T, R, 0.95, 0.4, 0.38, 1.0, o.aro, o.cubo, 0);
+  roda(T, R, 2.62, 0.62, 0.6, 1.0, o.aro, o.cubo, 6);
+  roda(T, R, 3.7, 0.62, 0.6, 1.0, o.aro, o.cubo, 6);
+  // biela ligando as motrizes
+  {
+    const a = proj(T([2.62 + 0.3, 0.62 + 0.12, 1.06])), b = proj(T([3.7 + 0.3, 0.62 + 0.12, 1.06]));
+    ctx.strokeStyle = TINTA; ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    ctx.strokeStyle = '#C9CCDA'; ctx.lineWidth = 3.4;
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    for (const p of [a, b]) pinta([[p[0] - 3, p[1] - 3], [p[0] + 3, p[1] - 3], [p[0] + 3, p[1] + 3], [p[0] - 3, p[1] + 3]], '#FFFFFF', 1.4);
+  }
+  return proj(T([0.7, 3.9, 0]));
+}
+
+/** Engate entre vagoes: uma barrinha escura no nivel do chassi. */
+function engate(T, a, b) {
+  const p = proj(T([a, 0.74, 0.3])), q2 = proj(T([b, 0.74, 0.3]));
+  ctx.strokeStyle = TINTA; ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q2[0], q2[1]); ctx.stroke();
+}
+
+/** Pontos extremos do trem (para enquadrar). */
+function limitesTrem(n) {
+  const fim = LOCO + 0.35 + n * PASSO - (PASSO - VAGAO);
+  return [[-0.75, 0.0, 1.0], [-0.75, 0.0, -1.0], [0.7, 3.9, 0.52], [0.7, 3.9, -0.52], [fim, 0, 1.02], [fim, 3.0, -1], [fim, 3.0, 1], [-0.75, 0.12, 0.95]];
+}
+/** Locomotiva e vagoes, de tras para frente; devolve a boca da chamine. */
+function trem(cores, o) {
+  const T0 = pose(0, 0, 0);
+  for (let k = cores.length - 1; k >= 0; k--) {
+    const x = LOCO + 0.35 + k * PASSO;
+    vagao(x, 0, 0, cores[k]);
+    engate(T0, x - (k ? PASSO - VAGAO : 0.35) - 0.02, x + 0.05);
+  }
+  return locomotiva(0, 0, 0, o);
+}
+
+// ---------- 2D: nuvens, fumaca, mato ----------
+/** Bolhas unidas com contorno (nuvem, fumaca, moita). */
+function bolhas(lista, cor, sombra, linha, lw) {
+  ctx.fillStyle = linha;
+  for (const [x, y, r] of lista) { ctx.beginPath(); ctx.arc(x, y, r + lw, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = sombra;
+  for (const [x, y, r] of lista) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = cor;
+  for (const [x, y, r] of lista) { ctx.beginPath(); ctx.arc(x - r * 0.12, y - r * 0.16, r * 0.84, 0, Math.PI * 2); ctx.fill(); }
+}
+
+function gradV(y0, y1, paradas) {
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  paradas.forEach(([t, c]) => g.addColorStop(t, c));
+  return g;
+}
+
+// ---------- trilho em 3D ----------
+/** Trilho reto ao longo de x, de xa ate xb, com dormentes e lastro. */
+function trilho3(xa, xb, z, ang, cores) {
+  const T = pose(0, z, ang);
+  const P = (a, b, c) => proj(T([a, b, c]));
+  pinta([P(xa, 0, -1.55), P(xb, 0, -1.55), P(xb, 0, 1.55), P(xa, 0, 1.55)], cores.lastro);
+  pinta([P(xa, 0, 1.55), P(xb, 0, 1.55), P(xb, -0.12, 1.75), P(xa, -0.12, 1.75)], tom(cores.lastro, -0.2));
+  // dormentes (de tras para frente)
+  for (let a = xb; a >= xa; a -= 0.62) {
+    const d0 = a - 0.2, d1 = a + 0.2;
+    pinta([P(d0, 0.12, -1.3), P(d1, 0.12, -1.3), P(d1, 0.12, 1.3), P(d0, 0.12, 1.3)], cores.dormente, 1.6);
+    pinta([P(d0, 0.12, 1.3), P(d1, 0.12, 1.3), P(d1, 0.0, 1.3), P(d0, 0.0, 1.3)], tom(cores.dormente, -0.25), 1.2);
+  }
+  // trilhos de aco
+  for (const zz of [-0.78, 0.78]) {
+    pinta([P(xa, 0.26, zz - 0.09), P(xb, 0.26, zz - 0.09), P(xb, 0.26, zz + 0.09), P(xa, 0.26, zz + 0.09)], '#E9EDF5', 1.4);
+    pinta([P(xa, 0.26, zz + 0.09), P(xb, 0.26, zz + 0.09), P(xb, 0.12, zz + 0.09), P(xa, 0.12, zz + 0.09)], '#8C93AA', 1.4);
+  }
+}
+
+// ============================================================
+// MODELO 1: dia, tres quartos
+// ============================================================
+// camera baixa e perto: a frente da locomotiva cresce e o teto dos vagoes
+// cai para a direita, como no modelo (?x=&y=&z=&ax=&ay=&x0=&x1=&base= para testar)
+const CAM1 = { x: -6, y: 2.0, z: 12, ax: 4.5, ay: 1.9, x0: 18, x1: 618, base: 500 };
+for (const k of Object.keys(CAM1)) if (q.has(k)) CAM1[k] = parseFloat(q.get(k));
+function modelo1() {
+  // ceu
+  ctx.fillStyle = gradV(0, 420, [[0, '#1D7CE6'], [0.55, '#46A8F7'], [1, '#B4E2FF']]);
+  ctx.fillRect(0, 0, V, V);
+  // nuvem grande a direita e uma pequena a esquerda
+  const nuvemCor = '#FFFFFF', nuvemSombra = '#CFE6FA', nuvemLinha = 'rgba(70,130,200,0.35)';
+  bolhas([[410, 228, 46], [462, 196, 58], [528, 214, 50], [580, 236, 40], [492, 246, 44], [612, 250, 30], [360, 252, 30]], nuvemCor, nuvemSombra, nuvemLinha, 2.5);
+  bolhas([[40, 282, 26], [78, 268, 32], [114, 286, 24]], nuvemCor, nuvemSombra, nuvemLinha, 2);
+  // mata ao fundo
+  const mata = [];
+  for (let i = 0; i < 16; i++) mata.push([i * 44 - 10, 392 + Math.sin(i * 2.3) * 8, 34 + Math.sin(i * 1.7) * 9]);
+  bolhas(mata, '#3FB24C', '#2B8F3E', '#1F6B33', 2.5);
+  // gramado
+  ctx.fillStyle = gradV(400, V, [[0, '#62CC45'], [1, '#3FAE38']]);
+  ctx.fillRect(0, 405, V, V - 405);
+
+  // camera a frente e a esquerda, na altura do teto da cabine
+  const cores1 = [C.amarelo, C.azul];
+  camera([CAM1.x, CAM1.y, CAM1.z], [CAM1.ax, CAM1.ay, 0], 1, 0, 0);
+  enquadrar(limitesTrem(cores1.length), CAM1.x0, CAM1.x1, CAM1.base);
+  trilho3(-12, 20, 0, 0, { lastro: '#9AA3B5', dormente: '#B9733F' });
+  const boca = trem(cores1, { caldeira: C.preto, frente: C.preto, aro: C.ouro, cubo: '#2A2840' });
+
+  // moitas em primeiro plano, embaixo
+  bolhas([[-10, 612, 50], [70, 630, 54], [168, 618, 44], [260, 640, 50], [380, 628, 46], [480, 636, 54], [590, 616, 50], [650, 640, 40]], '#3DB04A', '#2A8C3C', '#1E6A31', 3);
+
+  // fumaca: sai da boca da chamine e vira uma nuvem grande por cima da
+  // locomotiva, puxada para tras (o trem vai para a esquerda)
+  const [bx, by] = boca;
+  bolhas([
+    [bx + 4, by - 16, 19], [bx + 18, by - 46, 27], [bx + 40, by - 84, 36], [bx + 4, by - 112, 34],
+    [bx + 52, by - 140, 48], [bx + 112, by - 120, 44], [bx + 150, by - 168, 50], [bx + 92, by - 182, 44],
+    [bx + 204, by - 150, 36], [bx - 2, by - 160, 30],
+  ], '#FFFFFF', '#D3E2F2', 'rgba(60,90,140,0.45)', 2.5);
+}
+
+// ============================================================
+// MODELO 2: por do sol, perfil
+// ============================================================
+function modelo2() {
+  // ceu do por do sol
+  ctx.fillStyle = gradV(0, 300, [[0, '#3E2378'], [0.45, '#8E3A8E'], [0.8, '#D9557A'], [1, '#F39A6A']]);
+  ctx.fillRect(0, 0, V, V);
+  // faixas de nuvem
+  ctx.fillStyle = 'rgba(255,170,190,0.28)';
+  for (const [x, y, w] of [[60, 120, 160], [300, 92, 220], [430, 150, 170], [130, 186, 120]]) {
+    ctx.beginPath(); ctx.ellipse(x, y, w / 2, 7, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  // sol grande atras das montanhas
+  const sol = ctx.createRadialGradient(486, 214, 10, 486, 214, 150);
+  sol.addColorStop(0, 'rgba(255,214,150,0.65)');
+  sol.addColorStop(1, 'rgba(255,170,120,0)');
+  ctx.fillStyle = sol;
+  ctx.fillRect(300, 60, 328, 300);
+  ctx.fillStyle = '#FFD99A';
+  ctx.beginPath(); ctx.arc(486, 214, 88, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#FFE8BC';
+  ctx.beginPath(); ctx.arc(470, 198, 62, 0, Math.PI * 2); ctx.fill();
+  // montanhas: camada longe e perto
+  const serra = (pts, cor) => {
+    ctx.beginPath(); ctx.moveTo(0, 330);
+    for (const [x, y] of pts) ctx.lineTo(x, y);
+    ctx.lineTo(V, 330); ctx.closePath(); ctx.fillStyle = cor; ctx.fill();
+  };
+  serra([[0, 200], [60, 176], [130, 196], [230, 150], [330, 196], [400, 182], [480, 222], [560, 186], [628, 206]], '#9A4C90');
+  serra([[0, 236], [80, 214], [170, 240], [260, 208], [360, 244], [450, 226], [540, 250], [628, 228]], '#653072');
+  // arvores escuras na orla
+  bolhas([[18, 262, 22], [52, 252, 26], [90, 266, 20], [560, 262, 20], [600, 252, 26], [636, 264, 22]], '#4A2560', '#3B1D50', '#2A1440', 0);
+  // terreno atras do trilho
+  ctx.fillStyle = '#4C2B5E';
+  ctx.fillRect(0, 262, V, 132);
+
+  // camera de perfil e de longe (quase ortogonal): o trilho fica na
+  // horizontal e as frentes aparecem so como uma lasca
+  const cores2 = [C.amarelo, C.azul, C.verde];
+  camera([-1, 2.6, 40], [-1, 2.0, 0], 1, 0, 0);
+  enquadrar(limitesTrem(cores2.length), 22, 606, 372);
+  trilho3(-30, 40, 0, 0, { lastro: '#6E5170', dormente: '#9A5A33' });
+  const boca = trem(cores2, { caldeira: C.vermelho, frente: C.preto, aro: C.ouro, cubo: '#B0262E' });
+
+  // barranco de terra com o mato por cima
+  ctx.fillStyle = gradV(392, V, [[0, '#A0603A'], [1, '#6C3A26']]);
+  ctx.fillRect(0, 392, V, V - 392);
+  ctx.fillStyle = 'rgba(60,25,20,0.35)';
+  for (const [x, y, r] of [[60, 430, 10], [150, 470, 7], [520, 440, 9], [580, 500, 12], [40, 540, 8], [470, 560, 7], [300, 588, 9]]) {
+    ctx.beginPath(); ctx.ellipse(x, y, r * 1.6, r, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = '#5A3A2A';
+  ctx.fillRect(0, 388, V, 8);
+  // moitas nos cantos
+  bolhas([[-6, 520, 48], [40, 568, 52], [-10, 620, 50], [92, 616, 40]], '#45C04A', '#2E9A3C', '#1E6A31', 3);
+  bolhas([[640, 510, 46], [596, 566, 48], [640, 620, 50], [540, 618, 36]], '#45C04A', '#2E9A3C', '#1E6A31', 3);
+
+  // painel com as quatro cores (o que se faz no jogo: juntar por cor)
+  const px = 118, py = 438, pw = 392, ph = 112;
+  ctx.fillStyle = TINTA;
+  ctx.beginPath(); ctx.roundRect(px - 5, py - 5, pw + 10, ph + 10, 62); ctx.fill();
+  ctx.fillStyle = '#4A4D72';
+  ctx.beginPath(); ctx.roundRect(px, py, pw, ph, 56); ctx.fill();
+  ctx.fillStyle = '#2C2E4C';
+  ctx.beginPath(); ctx.roundRect(px + 10, py + 10, pw - 20, ph - 20, 46); ctx.fill();
+  ['#F2244E', '#FFC21A', '#1E7BF0', '#47C23A'].forEach((c, i) => {
+    const x = px + 66 + i * 87, y = py + ph / 2, r = 34;
+    ctx.fillStyle = TINTA;
+    ctx.beginPath(); ctx.arc(x, y + 2, r + 3.5, 0, Math.PI * 2); ctx.fill();
+    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
+    g.addColorStop(0, tom(c, 0.45));
+    g.addColorStop(0.55, c);
+    g.addColorStop(1, tom(c, -0.3));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.beginPath(); ctx.ellipse(x - r * 0.3, y - r * 0.45, r * 0.38, r * 0.2, -0.5, 0, Math.PI * 2); ctx.fill();
+  });
+
+  // fumaca subindo para tras
+  const fum = [];
+  for (let k = 0; k < 6; k++) {
+    const u = k / 5;
+    fum.push([boca[0] + 6 + u * 140, boca[1] - 14 - u * 100 + Math.sin(u * 5) * 6, 15 + u * 28]);
+  }
+  bolhas(fum, '#FFFFFF', '#E6D8EE', 'rgba(70,40,100,0.5)', 2.5);
+}
+
+if (modelo === '2') modelo2(); else modelo1();
+document.title = 'pronto';
+</script></body></html>
