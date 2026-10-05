@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cinco visuais — Color Train</title>
+<style>
+@font-face{font-family:"Fredoka";font-weight:600;font-display:swap;src:url("../../src/ui/fontes/fredoka-latin-600-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Fredoka";font-weight:600;font-display:swap;src:url("../../src/ui/fontes/fredoka-latin-ext-600-normal.woff2") format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Fredoka";font-weight:700;font-display:swap;src:url("../../src/ui/fontes/fredoka-latin-700-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Fredoka";font-weight:700;font-display:swap;src:url("../../src/ui/fontes/fredoka-latin-ext-700-normal.woff2") format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+
+:root{--papel:#E7DCC8;--tinta:#2C261F;--mudo:#6E6256}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--papel);
+  color:var(--tinta);
+  font-family:"Fredoka",system-ui,sans-serif;
+  font-weight:600;
+  line-height:1.45;
+}
+header,main{width:min(1100px,calc(100% - 32px));margin:0 auto}
+header{padding:42px 0 8px}
+h1{margin:0 0 10px;font-size:clamp(32px,5vw,52px);font-weight:700;letter-spacing:-0.03em;line-height:1.05}
+header p,figcaption p{margin:0;max-width:62ch;color:var(--mudo);font-size:18px}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 8px}
+nav a{
+  color:var(--tinta);
+  text-decoration:none;
+  background:#F6F0E6;
+  border-radius:999px;
+  padding:8px 14px;
+  font-size:15px;
+}
+nav a:focus-visible{outline:3px solid #C44536;outline-offset:2px}
+figure{margin:28px 0}
+img{display:block;width:100%;height:auto;background:#fff;border-radius:8px;box-shadow:0 12px 32px rgba(70,46,24,0.14)}
+figcaption{padding:14px 2px 0}
+figcaption h2{margin:0 0 4px;font-size:22px;font-weight:700}
+footer{width:min(1100px,calc(100% - 32px));margin:8px auto 48px;color:var(--mudo)}
+@media (max-width:640px){
+  header{padding-top:28px}
+  header p,figcaption p{font-size:16px}
+  figcaption h2{font-size:19px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Cinco visuais</h1>
+  <p>Cada prancha é um caminho inteiro: o lugar e as peças no mesmo material. A locomotiva fica no trem de tanques azuis, de frente para a esquerda. O jogo não foi alterado.</p>
+  <nav>
+    <a href="#oficina">Oficina</a>
+    <a href="#cais">Cais</a>
+    <a href="#serra">Serra</a>
+    <a href="#esmalte">Esmalte</a>
+    <a href="#plantado">Plantado</a>
+  </nav>
+</header>
+<main>
+  <figure id="oficina">
+    <img src="01-oficina.jpg" width="1280" height="720" alt="Pátio de tijolo em guache, com diesel verde e tanques azuis.">
+    <figcaption>
+      <h2>1. Oficina</h2>
+      <p>Manhã de guache. Diesel curto, verde e creme, no trem de tanques de vidro. Em volta: laranjas, tanque vermelho, barris, areia, bambu, contêiner e balões. Galpão de tijolo, relógio e caixa d'água.</p>
+    </figcaption>
+  </figure>
+  <figure id="cais">
+    <img src="02-cais.jpg" width="1280" height="720" alt="Diorama de papel do cais, com locomotiva amarela e tanques azuis.">
+    <figcaption>
+      <h2>2. Cais</h2>
+      <p>Papel recortado, fotografado. Locomotiva de doca, amarela e preta, com tanques azuis. Laranjas, tanque vermelho, barris, areia, bambu, caixa turquesa e balões, sobre o píer e o mar.</p>
+    </figcaption>
+  </figure>
+  <figure id="serra">
+    <img src="03-serra.jpg" width="1280" height="720" alt="Ilustração de montanha, locomotiva creme com faixa vermelha e tanques azuis.">
+    <figcaption>
+      <h2>3. Serra</h2>
+      <p>Nanquim e guache. Locomotiva creme de uma faixa vermelha, no trem azul. Contêiner, barris, areia, laranjas, bambu e balões, com chalé, pinheiros e teleférico.</p>
+    </figcaption>
+  </figure>
+  <figure id="esmalte">
+    <img src="04-esmalte.jpg" width="1280" height="720" alt="Trem de cerâmica vidrada e casinhas de esmalte sobre linho.">
+    <figcaption>
+      <h2>4. Esmalte</h2>
+      <p>Cerâmica vidrada, em foto de estúdio. Locomotiva elétrica branca e tanques de cobalto. Laranjas, bambu, barris, contêiner, areia e balões, diante de um vilarejo de casinhas.</p>
+    </figcaption>
+  </figure>
+  <figure id="plantado">
+    <img src="05-plantado.jpg" width="1280" height="720" alt="Pátio florido ao anoitecer, locomotiva verde e quatro tanques azuis.">
+    <figcaption>
+      <h2>5. Plantado</h2>
+      <p>Guache de fim de tarde. Locomotiva baixa, verde, no trem de quatro tanques de vidro. Balões, barris, laranjas, bambu, contêiner e areia entre os canteiros, com um abrigo de madeira.</p>
+    </figcaption>
+  </figure>
+</main>
+<footer>Arquivos só em docs/visuais. Nada disto entrou em src/.</footer>
+</body>
+</html>
