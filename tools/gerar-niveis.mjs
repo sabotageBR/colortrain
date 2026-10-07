@@ -8,17 +8,27 @@ const total = Number(process.argv[2]) || 150;
 const linhas = [];
 const inicio = Date.now();
 let pior = 0;
+/** becos por faixa: [ate o nivel, maior risco, niveis com estado morto] */
+const faixas = [[12, 0, 0], [40, 0, 0], [total, 0, 0]];
 for (let n = 1; n <= total; n++) {
   const t0 = Date.now();
   const d = gerarNivel(n);
   pior = Math.max(pior, Date.now() - t0);
   linhas.push(`  [${d.cap}, '${d.t.join('|')}', ${d.jogadas}],`);
+  const f = /** @type {number[]} */ (faixas.find((x) => n <= x[0]));
+  f[1] = Math.max(f[1], d.risco || 0);
+  if (d.mortos) f[2]++;
 }
 const destino = fileURLToPath(new URL('../src/jogo/niveis.js', import.meta.url));
 writeFileSync(destino, `// Gerado por tools/gerar-niveis.mjs. Nao editar a mao.
-// [vagoes por trem, trilhos separados por '|' (indice 0 = frente), jogadas da solucao]
+// [vagoes por trem, trilhos separados por '|' (indice 0 = boca), jogadas da solucao]
 export const NIVEIS = [
 ${linhas.join('\n')}
 ];
 `);
 process.stdout.write(`${total} niveis em ${Date.now() - inicio} ms (pior ${pior} ms) -> src/jogo/niveis.js\n`);
+let de = 1;
+for (const [ate, risco, comMorto] of faixas) {
+  process.stdout.write(`  niveis ${de}-${ate}: risco maximo ${risco.toFixed(2)}, ${comMorto} com estado morto\n`);
+  de = ate + 1;
+}

@@ -26,22 +26,23 @@ const opcao = q.get('opcao') || 'a';
 const S = Math.max(64, parseInt(q.get('s') || '1256', 10));
 
 // cores: 0 vermelho (tanque), 2 amarelo (areia), 5 azul (tanque), 6 roxo (barris)
-// cada trilho: [indice, cores paradas, vaga inicial]. origem: o bloco saiu da
-// frente dela (sobra o resto da fila); destino: ja tem um vagao da cor do
-// bloco; pronto: o trem completo com a locomotiva
+// cada trilho: [indice, cores paradas, vaga inicial]. Os vagoes ficam
+// encostados no para-choque. origem: o bloco saiu da boca dela (sobra o resto);
+// destino: ja tem na boca um vagao da cor do bloco, que vai engatar na frente
+// dele; pronto: o trem completo com a locomotiva
 // sem o predio da estacao: o bloco no ar voa sobre o ceu limpo. escala: o
 // bloco no ar fica maior (mais perto da camera) para ser o objeto principal
 const OPCOES = {
   // dia na campina: bloco de areia contra o ceu azul
-  a: { tema: 'campina', escala: 1.3, origem: [0, [5], 2], destino: [1, [2], 0], pronto: [2, [0, 0, 0], 0], bloco: [2, 2] },
+  a: { tema: 'campina', escala: 1.3, origem: [0, [5], 2], destino: [1, [2], 2], pronto: [2, [0, 0, 0], 0], bloco: [2, 2] },
   // por do sol (a paleta da thumb v2): bloco de areia contra o ceu roxo e rosa
   b: {
-    tema: 'campina', escala: 1.3, origem: [0, [5], 2], destino: [1, [2], 0], pronto: [2, [0, 0, 0], 0], bloco: [2, 2],
+    tema: 'campina', escala: 1.3, origem: [0, [5], 2], destino: [1, [2], 2], pronto: [2, [0, 0, 0], 0], bloco: [2, 2],
     ceu: ['#3B1E6E', '#C2457A', '#FF9E5E'], horizonte: { forma: 'morros', longe: '#9A4C86', perto: '#5A2E63' }, nuvens: 0,
     luz: '#FF8A5C',
   },
   // noite de festa: o mais contrastado com o site claro da Poki
-  c: { tema: 'festa', escala: 1.3, origem: [0, [2], 2], destino: [1, [5], 0], pronto: [2, [0, 0, 0], 0], bloco: [5, 5] },
+  c: { tema: 'festa', escala: 1.3, origem: [0, [2], 2], destino: [1, [5], 2], pronto: [2, [0, 0, 0], 0], bloco: [5, 5] },
 };
 const K = OPCOES[opcao] || OPCOES.a;
 // ceu limpo atras do bloco: sem sol nem lua (pedido do usuario na v2), sem o
@@ -109,8 +110,8 @@ for (let i = 0; i < lay.trilhos.length; i++) {
   if (i === iOrig) fila(iOrig, coresOrig, sOrig, (c) => carga(c, { tilt: -0.3, jolt: 0.4 }));
   if (i === iDest) {
     fila(iDest, coresDest, sDest);
-    // fantasma onde o bloco vai engatar
-    K.bloco.forEach((c, k) => desenharVagao(ctx, lay.xVaga(iDest, sDest + coresDest.length + k), tD.yb, c, L, tema, dpr, { alfa: 0.45 }));
+    // fantasma onde o bloco vai engatar: na boca, encostado no que ja esta la
+    K.bloco.forEach((c, k) => desenharVagao(ctx, lay.xVaga(iDest, sDest - K.bloco.length + k), tD.yb, c, L, tema, dpr, { alfa: 0.45 }));
   }
   if (i === iPronto) {
     desenharSombra(ctx, tP.xLoco, tP.yb, lay.Lg, 1, tema);

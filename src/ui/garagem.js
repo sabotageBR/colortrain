@@ -1,20 +1,36 @@
-// Garagem: colecao de pinturas da locomotiva. Cada 5 niveis libera uma; o
-// video recompensado libera a proxima na hora. Painel em DOM com previas
-// desenhadas pelo proprio desenharLoco.
+// Garagem: colecao de pinturas da locomotiva. A primeira nova libera ao
+// completar o nivel 3 e depois uma a cada 4 niveis (a meta aparece no HUD
+// desde o primeiro minuto); o video recompensado libera a proxima na hora.
+// Painel em DOM com previas desenhadas pelo proprio desenharLoco.
 
 import { PINTURAS, desenharLoco, caminhoRet } from '../render/pecas.js';
 import { temaPorNivel } from '../render/tema.js';
 
-export const NIVEIS_POR_LOCO = 5;
+/** Niveis entre uma locomotiva e a proxima (a primeira vem um nivel antes). */
+export const NIVEIS_POR_LOCO = 4;
 
 /** Quantas pinturas ja estao liberadas. @param {number} nivel nivel atual @param {number} extras */
 export function liberadas(nivel, extras) {
-  return Math.min(PINTURAS.length, 1 + Math.floor((nivel - 1) / NIVEIS_POR_LOCO) + extras);
+  return Math.min(PINTURAS.length, 1 + Math.floor(nivel / NIVEIS_POR_LOCO) + extras);
 }
 
-/** Nivel em que a pintura i libera sozinha. @param {number} i @param {number} extras */
+/** Nivel atual a partir do qual a pintura i esta liberada. @param {number} i @param {number} extras */
 export function nivelDaPintura(i, extras) {
-  return 1 + (i - extras) * NIVEIS_POR_LOCO;
+  return Math.max(1, (i - extras) * NIVEIS_POR_LOCO);
+}
+
+/**
+ * Progresso ate a proxima locomotiva: atual de total niveis concluidos e o
+ * indice da que vem (null quando todas ja estao liberadas).
+ * @param {number} nivel @param {number} extras
+ * @returns {{ atual: number, total: number, proxima: number|null }}
+ */
+export function progressoLoco(nivel, extras) {
+  const n = liberadas(nivel, extras);
+  if (n >= PINTURAS.length) return { atual: 0, total: 0, proxima: null };
+  const ini = Math.max(1, Math.floor(nivel / NIVEIS_POR_LOCO) * NIVEIS_POR_LOCO);
+  const fim = (Math.floor(nivel / NIVEIS_POR_LOCO) + 1) * NIVEIS_POR_LOCO;
+  return { atual: nivel - ini, total: fim - ini, proxima: n };
 }
 
 /**

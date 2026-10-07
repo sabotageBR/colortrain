@@ -1,13 +1,17 @@
 // Cena dinamica: os vagoes e locomotivas como objetos visuais que perseguem o
 // estado do jogo com tweens. O estado muda na hora; o visual alcanca depois,
-// entao toques rapidos funcionam. Tambem desenha destaques, mao do tutorial,
-// fantasma do arraste e particulas.
+// entao toques rapidos funcionam. Tambem desenha destaques, vagas livres, mao
+// do tutorial, fantasma do arraste, erro com motivo e particulas.
+//
+// Os vagoes ficam encostados no para-choque: c.s guarda a VAGA (ver
+// layout.js vaga), nao o indice no trilho.
 
 import { desenharCenario } from './cenario.js';
 import {
   desenharVagao, desenharLoco, desenharSanfona, desenharEngate, desenharSombra,
-  desenharLuzSinal, desenharMao, desenharSimbolo, pontaChamine, limparCache, caminhoRet, PINTURA_CLASSICA,
+  desenharLuzSinal, desenharMao, desenharSimbolo, pontaChamine, limparCache, caminhoRet, topo3d, PINTURA_CLASSICA,
 } from './pecas.js';
+import { vaga } from './layout.js';
 import { completo, bloco } from '../jogo/regras.js';
 import { CORES } from './tema.js';
 import { criarCarga, passoCarga, impulsoCarga } from './fisica.js';
@@ -45,6 +49,10 @@ export function criarCena(canvas) {
   const tremores = new Map();
   /** @type {{ ids: number[], x: number, y: number }|null} */
   let arraste = null;
+  /** erro com motivo em exibicao @type {null|{ tipo: 'cor'|'cap', tr: number, ids: number[], t0: number }} */
+  let erro = null;
+  /** trens do nivel anterior ainda saindo da tela @type {{ itens: any[], t0: number, apagar: boolean }|null} */
+  let saindo = null;
 
   // ---------------------------------------------------------- utilidades
   const alvoVaga = (i, s) => ({ x: /** @type {Layout} */ (lay).xVaga(i, s), y: /** @type {Layout} */ (lay).trilhos[i].yb });
@@ -117,9 +125,11 @@ export function criarCena(canvas) {
     if (!st || !lay) return 0;
     let fim = 0;
     const vivos = new Set();
+    const cap = st.cap;
     st.trilhos.forEach((t, i) => {
-      t.forEach((v, s) => {
+      t.forEach((v, j) => {
         vivos.add(v.id);
+        const s = vaga(cap, t.length, j);
         const alvo = alvoVaga(i, s);
         let c = carros.get(v.id);
         if (!c) {
@@ -228,7 +238,7 @@ export function criarCena(canvas) {
       const alvo = { x: c.x, y: c.y };
       c.x += off + c.s * lay.L * 0.05;
       c.xAnt = c.x;
-      fim = Math.max(fim, tween(c, alvo, 900, c.tr * 85, 0, saida));
+      fim = Math.max(fim, tween(c, alvo, 600, c.tr * 35, 0, saida));
     }
     return fim;
   }
@@ -239,7 +249,7 @@ export function criarCena(canvas) {
     const t = lay.trilhos[tr];
     const l = { tr, x: -lay.Lg, y: t.yb, tw: null, roda: 0, xAnt: -lay.Lg, aceso: false, esmaga: -1e9, partida: null, chegando: true };
     locos.set(tr, l);
-    return tween(l, { x: t.xLoco, y: t.yb }, 700, 0, 0, saida);
+    return tween(l, { x: t.xLoco, y: t.yb }, 450, 0, 0, saida);
   }
 
   /** Todos os trens partem para a esquerda, um apos o outro. */
@@ -249,17 +259,17 @@ export function criarCena(canvas) {
     const ordem = [...locos.values()].sort((a, b) => a.tr - b.tr);
     let fim = 0;
     ordem.forEach((l, i) => {
-      const t0 = agora + 380 + i * 140;
+      const t0 = agora + 150 + i * 50;
       const vagoes = [...carros.values()].filter((c) => c.tr === l.tr).sort((a, b) => a.s - b.s);
       // trem pesado arranca devagar; a locomotiva patina nos primeiros metros
-      const acel = Math.max(700, W * 1.4) / (1 + 0.09 * vagoes.length);
+      const acel = (1.6 * Math.max(700, W * 1.4)) / (1 + 0.09 * vagoes.length);
       l.partida = { t0, acel, folga: 0 };
       l.esforco = { t0, n: vagoes.length, proximaFaisca: t0 };
       l.aceso = true;
       vagoes.forEach((c) => { c.partida = { t0, acel, folga: (c.s + 1) * lay.L * 0.07 }; });
       // tempo ate sair da tela: x + 0.5 a t^2 > largura (mais a folga do ultimo)
       const dist = lay.xFim + lay.L * 2 + vagoes.length * lay.L * 0.07;
-      fim = Math.max(fim, 380 + i * 140 + Math.sqrt((2 * dist) / acel) * 1000);
+      fim = Math.max(fim, 150 + i * 50 + Math.sqrt((2 * dist) / acel) * 1000);
     });
     return fim;
   }
@@ -290,7 +300,7 @@ export function criarCena(canvas) {
       if (c.fis.joltT0 && agora >= c.fis.joltT0) {
         c.fis.joltT0 = 0;
         c.esmaga = agora;
-        impulsoCarga(c.fis, 0.55, -1);
+        impulsoCarga(c.fis, 0.55, c.fis.joltDir || -1);
         if (c.fis.tipo === 'areia' || c.fis.tipo === 'laranjas') graos(c.x, c.y - lay.L * 0.7, lay.L, CORES[c.c].base, 6, 0.7);
       }
       passoCarga(c.fis, c.ax / lay.L, dt);
@@ -354,6 +364,122 @@ export function criarCena(canvas) {
     ctx.restore();
   }
 
+  /** Vagas livres de cada trilho (junto da boca): pegada tracejada no chao. */
+  function desenharVagasLivres() {
+    if (!lay || !st) return;
+    const L = lay.L;
+    ctx.save();
+    ctx.setLineDash([L * 0.12, L * 0.08]);
+    ctx.lineWidth = Math.max(2, L * 0.045);
+    st.trilhos.forEach((t, i) => {
+      if (completo(t, st.cap)) return;
+      const y = lay.trilhos[i].yb + L * 0.06;
+      for (let s = 0; s < st.cap - t.length; s++) {
+        const xc = lay.xVaga(i, s);
+        topo3d(ctx, xc - L * 0.44, xc + L * 0.44, y, L * 0.42);
+        ctx.fillStyle = 'rgba(255,255,255,0.16)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.stroke();
+      }
+    });
+    ctx.restore();
+  }
+
+  /** Escurece os trilhos fora da jogada guiada. @param {number[]} foco */
+  function desenharFoco(foco) {
+    if (!lay) return;
+    const L = lay.L;
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,10,20,0.5)';
+    lay.trilhos.forEach((t, i) => {
+      if (foco.includes(i)) return;
+      caminhoRet(ctx, t.xIni - L * 0.1, t.yb - L * 1.0, t.xFim - t.xIni + L * 0.2, L * 1.25, L * 0.12);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  /** X vermelho desenhado com caminho (sem glifo). */
+  function xis(cx, cy, r, alfa) {
+    ctx.save();
+    ctx.globalAlpha = alfa;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - r, cy - r);
+    ctx.lineTo(cx + r, cy + r);
+    ctx.moveTo(cx + r, cy - r);
+    ctx.lineTo(cx - r, cy + r);
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = r * 0.75;
+    ctx.stroke();
+    ctx.strokeStyle = '#FF4D4D';
+    ctx.lineWidth = r * 0.42;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Erro com motivo: X na boca de cor diferente, ou a sobra do bloco que nao cabe. */
+  function desenharErro() {
+    if (!erro || !lay || !st) return;
+    const p = (agora - erro.t0) / 900;
+    if (p >= 1) {
+      erro = null;
+      return;
+    }
+    const L = lay.L;
+    const alfa = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
+    const t = st.trilhos[erro.tr];
+    if (!t) return;
+    const tl = lay.trilhos[erro.tr];
+    if (erro.tipo === 'cor') {
+      const s = vaga(st.cap, t.length, 0);
+      xis(lay.xVaga(erro.tr, s), tl.yb - L * 0.5, L * 0.22, alfa);
+      return;
+    }
+    // nao cabe: o bloco aparece onde entraria; o que passa da boca fica vermelho
+    const n = erro.ids.length;
+    erro.ids.forEach((id, j) => {
+      const c = carros.get(id);
+      const s = st.cap - t.length - n + j;
+      const xc = lay.xVaga(erro.tr, s);
+      if (xc - L * 0.5 < lay.xIni) return;
+      if (c) desenharVagao(ctx, xc, tl.yb, c.c, L, /** @type {Tema} */ (tema), dpr, { alfa: 0.35 * alfa });
+      if (s < 0) {
+        ctx.save();
+        ctx.globalAlpha = alfa;
+        caminhoRet(ctx, xc - L * 0.48, tl.yb - L * 0.86, L * 0.96, L * 0.8, L * 0.12);
+        ctx.fillStyle = 'rgba(255,77,77,0.35)';
+        ctx.fill();
+        ctx.strokeStyle = '#FF4D4D';
+        ctx.lineWidth = Math.max(2, L * 0.05);
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
+  }
+
+  /** Trens do nivel anterior que ainda estao saindo (toque que adiantou a troca). */
+  function desenharSaindo() {
+    if (!saindo || !tema) return;
+    const idade = agora - saindo.t0;
+    const alfa = saindo.apagar ? 1 - idade / 350 : 1;
+    if (idade > 2500 || alfa <= 0) {
+      saindo = null;
+      return;
+    }
+    const L = /** @type {Layout} */ (lay).L;
+    ctx.save();
+    ctx.globalAlpha = alfa;
+    for (const o of saindo.itens) {
+      const p = posDesenho(o);
+      if (p.x < -L * 2) continue;
+      if (o.loco) desenharLoco(ctx, p.x, p.y, o.L, tema, dpr, { aceso: true, roda: o.roda, pintura });
+      else desenharVagao(ctx, p.x, p.y, o.c, o.L, tema, dpr, { roda: o.roda, fis: o.fis });
+    }
+    ctx.restore();
+  }
+
   function desenharParticulas() {
     for (const p of parts) {
       const k = p.vida / p.max;
@@ -399,7 +525,7 @@ export function criarCena(canvas) {
    * @param {number} t tempo (ms)
    * @param {{ sel?: number|null, destinos?: number[], alvo?: number, alvoValido?: boolean,
    *   mao?: { de: {x:number,y:number}, para: {x:number,y:number}, t0: number }|null,
-   *   fantasma?: { tr: number, ids: number[] }|null }} [x]
+   *   fantasma?: { tr: number, ids: number[] }|null, foco?: number[]|null }} [x]
    */
   function desenhar(_t, x = {}) {
     const antes = agora;
@@ -412,6 +538,9 @@ export function criarCena(canvas) {
     ctx.drawImage(fundo, 0, 0, W, H);
     const L = lay.L;
     const pulso = 0.5 + 0.5 * Math.sin(t / 220);
+
+    desenharSaindo();
+    desenharVagasLivres();
 
     // destaques nos trilhos
     if (x.destinos) for (const d of x.destinos) if (d !== x.alvo) realce(d, '#7CFFB2', 0.35 + 0.4 * pulso);
@@ -472,14 +601,17 @@ export function criarCena(canvas) {
       }
     }
 
-    // fantasma: onde o bloco arrastado vai engatar
+    if (x.foco) desenharFoco(x.foco);
+
+    // fantasma: onde o bloco arrastado vai engatar (na boca, antes dos que estao la)
     if (x.fantasma && x.fantasma.tr >= 0) {
       const f = x.fantasma;
       const ocup = st.trilhos[f.tr].length;
+      const n = f.ids.length;
       f.ids.forEach((id, k) => {
         const c = carros.get(id);
         if (!c) return;
-        const a = alvoVaga(f.tr, ocup + k);
+        const a = alvoVaga(f.tr, st.cap - ocup - n + k);
         desenharVagao(ctx, a.x, a.y, c.c, L, tema, dpr, { alfa: 0.35 });
       });
     }
@@ -498,6 +630,7 @@ export function criarCena(canvas) {
       desenharVagao(ctx, p.x, p.y, c.c, L, tema, dpr, { roda: c.roda, brilho: Math.min(1, c.lift + (arrastados.has(c.id) ? 1 : 0)), fis: c.fis, noAr: true });
     }
 
+    desenharErro();
     desenharParticulas();
 
     if (x.mao) {
@@ -543,12 +676,21 @@ export function criarCena(canvas) {
      * @param {Estado} estado @param {Layout} l @param {Tema} t @param {{ novo?: boolean }} [o]
      */
     configurar(estado, l, t, o = {}) {
+      if (o.novo && lay) {
+        // trens que ainda partem continuam ate sair (apagam se o patio mudou)
+        const itens = [];
+        for (const c of carros.values()) if (c.partida) itens.push({ ...c, L: lay.L });
+        for (const v of locos.values()) if (v.partida) itens.push({ ...v, loco: true, L: lay.L });
+        relogio();
+        saindo = itens.length ? { itens, t0: agora, apagar: lay.n !== l.n || lay.cap !== l.cap || tema !== t || Math.abs(lay.L - l.L) > 0.5 } : null;
+      }
       st = estado;
       lay = l;
       if (tema !== t) limparCache();
       tema = t;
       fundo = null;
       if (o.novo) {
+        erro = null;
         carros.clear();
         locos.clear();
         parts = [];
@@ -586,6 +728,10 @@ export function criarCena(canvas) {
         }
       }
     },
+    /** O trilho ja tem locomotiva? @param {number} tr */
+    temLoco(tr) {
+      return locos.has(tr);
+    },
     /** @param {number} tr */
     tremer(tr) {
       tremores.set(tr, relogio());
@@ -596,16 +742,33 @@ export function criarCena(canvas) {
       return c ? posDesenho(c) : null;
     },
     alvoVaga,
-    /** Efeitos no ponto de engate do fim de um trilho. @param {number} tr */
-    engatou(tr) {
+    /**
+     * Efeitos no ponto de engate: o bloco de n vagoes entrou pela boca do trilho.
+     * @param {number} tr @param {number} n
+     */
+    engatou(tr, n = 1) {
       if (!st || !lay) return;
-      const n = st.trilhos[tr].length;
-      const a = alvoVaga(tr, Math.max(0, n - 1));
-      faiscas(a.x - lay.P / 2, a.y - lay.L * 0.2);
-      // o tranco corre do engate ate a frente do trem, vagao por vagao
+      const k = st.trilhos[tr].length;
+      const sEngate = vaga(st.cap, k, n);
+      // trilho que estava vazio: o bloco encosta no para-choque
+      const a = k > n ? alvoVaga(tr, sEngate) : alvoVaga(tr, st.cap - 1);
+      faiscas(k > n ? a.x - lay.P / 2 : a.x + lay.P / 2, a.y - lay.L * 0.2);
+      // o tranco corre do engate ate o para-choque, vagao por vagao
       relogio();
-      const fila = [...carros.values()].filter((c) => c.tr === tr).sort((x, y) => y.s - x.s);
-      fila.forEach((c, k) => { if (k > 0 && !c.tw) c.fis.joltT0 = agora + k * 45; });
+      const fila = [...carros.values()].filter((c) => c.tr === tr && c.s >= sEngate).sort((x, y) => x.s - y.s);
+      fila.forEach((c, i) => {
+        if (c.tw) return;
+        c.fis.joltT0 = agora + (i + 1) * 45;
+        c.fis.joltDir = 1;
+      });
+    },
+    /**
+     * Mostra por que a jogada nao vale.
+     * @param {{ tipo: 'cor'|'cap', tr: number, ids?: number[] }} e
+     */
+    marcarErro(e) {
+      erro = { tipo: e.tipo, tr: e.tr, ids: e.ids || [], t0: relogio() };
+      if (e.tipo === 'cor') tremores.set(e.tr, agora);
     },
     /** @param {number} tr */
     comemorar(tr) {

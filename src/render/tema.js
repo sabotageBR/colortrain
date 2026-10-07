@@ -288,14 +288,29 @@ export const TEMAS = {
   }),
 };
 
-/** Um mundo novo a cada tantos niveis, nesta ordem (10 x 15 = os 150 niveis prontos). */
-export const NIVEIS_POR_MUNDO = 15;
-
 /** @type {string[]} */
 export const ORDEM_MUNDOS = ['campina', 'porto', 'deserto', 'serra', 'metropole', 'festa', 'inverno', 'tropico', 'outono', 'aurora'];
 
-/** Tema do nivel, ciclando a campanha. @param {number} nivel */
+/**
+ * Nivel em que cada mundo comeca: mundos curtos no comeco (o 2o ja no nivel 6)
+ * e crescendo depois; os 10 cobrem os 150 niveis prontos. Dali em diante a
+ * campanha cicla de 15 em 15.
+ */
+export const INICIO_MUNDOS = [1, 6, 13, 22, 33, 46, 61, 78, 97, 118];
+export const NIVEIS_POR_MUNDO_DEPOIS = 15;
+
+/** Indice do mundo do nivel (0..9). @param {number} nivel */
+export function mundoPorNivel(nivel) {
+  const n = Math.max(1, nivel);
+  if (n <= 150) {
+    let i = 0;
+    while (i + 1 < INICIO_MUNDOS.length && INICIO_MUNDOS[i + 1] <= n) i++;
+    return i;
+  }
+  return Math.floor((n - 151) / NIVEIS_POR_MUNDO_DEPOIS) % ORDEM_MUNDOS.length;
+}
+
+/** Tema do nivel. @param {number} nivel */
 export function temaPorNivel(nivel) {
-  const i = Math.floor((Math.max(1, nivel) - 1) / NIVEIS_POR_MUNDO) % ORDEM_MUNDOS.length;
-  return TEMAS[ORDEM_MUNDOS[i]];
+  return TEMAS[ORDEM_MUNDOS[mundoPorNivel(nivel)]];
 }

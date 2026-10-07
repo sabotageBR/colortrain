@@ -25,12 +25,13 @@ const PARAMS = {
 
 /**
  * @typedef {{ tipo: string, cor: number, t: number, tilt: number, tiltV: number, bob: number, bobV: number,
- *   jolt: number, rot: number, joltT0: number }} Carga
+ *   jolt: number, rot: number, joltT0: number, joltDir: number }} Carga
+ * joltT0/joltDir: tranco agendado da onda de engate (dir +1 = para o para-choque)
  */
 
 /** Estado inicial da carga de um vagao. @param {number} cor @returns {Carga} */
 export function criarCarga(cor) {
-  return { tipo: tipoDaCor(cor), cor, t: Math.random() * 10, tilt: 0, tiltV: 0, bob: 0, bobV: 0, jolt: 0, rot: 0, joltT0: 0 };
+  return { tipo: tipoDaCor(cor), cor, t: Math.random() * 10, tilt: 0, tiltV: 0, bob: 0, bobV: 0, jolt: 0, rot: 0, joltT0: 0, joltDir: -1 };
 }
 
 /** Agua (azul) e mais fluida que suco (vermelho): balanca mais tempo. */

@@ -24,7 +24,7 @@ f.onload = async () => {
   if (r === 'selecao') { const p = centro(a); ev('pointerdown', p.x, p.y); ev('pointerup', p.x, p.y); }
   if (r === 'arraste') {
     const p = centro(a); ev('pointerdown', p.x, p.y);
-    const alvoY = lay.trilhos[b].yb - lay.L * 0.3, alvoX = lay.xVaga(b, ct.J.st.trilhos[b].length);
+    const alvoY = lay.trilhos[b].yb - lay.L * 0.3, alvoX = lay.xVaga(b, lay.cap - ct.J.st.trilhos[b].length - 1);
     for (let k = 1; k <= 12; k++) { await espera(16); ev('pointermove', p.x + (alvoX - p.x) * k / 12, p.y + (alvoY - p.y) * k / 12); }
   }
   if (r === 'jogar') {

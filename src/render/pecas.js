@@ -546,7 +546,7 @@ const CARGAS = {
 };
 
 /** Estado parado, para o fantasma do arraste e as previas. */
-const REPOUSO = { tipo: '', cor: 0, t: 0, tilt: 0, tiltV: 0, bob: 0, bobV: 0, jolt: 0, rot: 0, joltT0: 0 };
+const REPOUSO = { tipo: '', cor: 0, t: 0, tilt: 0, tiltV: 0, bob: 0, bobV: 0, jolt: 0, rot: 0, joltT0: 0, joltDir: -1 };
 
 /**
  * @param {CanvasRenderingContext2D} ctx @param {number} x @param {number} y linha do trilho
@@ -650,7 +650,8 @@ export function desenharEngate(ctx, xa, xb, y, L) {
  *   teto: string, friso: string, roda: string }} Pintura
  */
 /**
- * Colecao de pinturas da locomotiva (a garagem): uma nova a cada 5 niveis.
+ * Colecao de pinturas da locomotiva (a garagem): a primeira nova ao completar
+ * o nivel 3, depois uma a cada 4 niveis (ver ui/garagem.js).
  * @type {(Pintura & { id: string })[]}
  */
 export const PINTURAS = [

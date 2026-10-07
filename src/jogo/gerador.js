@@ -1,10 +1,12 @@
 // Gerador de niveis com semente: mesmo numero de nivel = mesmo tabuleiro.
 // Sorteia os vagoes e so aceita o tabuleiro que o solucionador resolve dentro
-// da faixa de jogadas da curva. Roda no node (tools/gerar-niveis.mjs grava os
-// 150 primeiros em niveis.js) e no navegador para os niveis seguintes.
+// da faixa de jogadas da curva e que passa no filtro de becos (semBeco: nenhum
+// estado morto alcancavel; riscoMax: teto para quem toca ao acaso). Roda no
+// node (tools/gerar-niveis.mjs grava os 150 primeiros em niveis.js) e no
+// navegador para os niveis seguintes, que nao tem filtro de becos.
 
 import { criarRng, hashTexto, embaralhar } from '../core/rng.js';
-import { resolver } from './solucionador.js';
+import { resolver, explorar, riscoBeco } from './solucionador.js';
 import { parametros } from './curva.js';
 
 // Cores mais distintas primeiro: os niveis iniciais usam so estas.
@@ -19,7 +21,7 @@ function completoTexto(t, cap) {
 
 /**
  * @param {number} nivel
- * @returns {{ cap: number, t: string[], jogadas: number }}
+ * @returns {{ cap: number, t: string[], jogadas: number, mortos?: number, risco?: number }}
  */
 export function gerarNivel(nivel) {
   const p = parametros(nivel);
@@ -55,6 +57,14 @@ export function gerarNivel(nivel) {
     const sol = resolver(t, p.cap, { exato: !!p.exato, orcamento: p.exato ? 40000 : 60000 });
     if (!sol) continue;
     if (sol.length < p.min || (p.max && sol.length > p.max)) continue;
+    if (p.semBeco || p.riscoMax) {
+      const g = explorar(t, p.cap, { limite: 60000 });
+      if (!g) continue;
+      if (p.semBeco && g.mortos) continue;
+      const risco = p.riscoMax ? riscoBeco(g, criarRng(base ^ tentativa)) : 0;
+      if (p.riscoMax && risco > p.riscoMax) continue;
+      return { cap: p.cap, t, jogadas: sol.length, mortos: g.mortos, risco };
+    }
     return { cap: p.cap, t, jogadas: sol.length };
   }
   throw new Error('nao consegui gerar o nivel ' + nivel);

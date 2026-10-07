@@ -45,7 +45,8 @@ let html = await (await fetch('../' + raiz + 'index.html')).text();
 const tag = /<!-- Unico script externo permitido pela Poki. -->\s*<script src="https:\/\/game-cdn\.poki\.com\/scripts\/v2\/poki-sdk\.js"><\/script>/;
 conferir(tag.test(html), 'index.html sem a tag do SDK da Poki no formato esperado');
 const nivel = 4;
-const teste = `<script>window.__colortrainTeste = { nivel: ${nivel}, fixo: true };<\/script>`;
+// intervaloMs: o primeiro intervalo comercial vem 5 s depois do primeiro toque (no jogo, 3 min)
+const teste = `<script>window.__colortrainTeste = { nivel: ${nivel}, fixo: true, intervaloMs: 5000 };<\/script>`;
 const extra = cenario === 'bloqueado' ? '' : cenario === 'lsquebrado' ? lsQuebrado + sdkFalso : sdkFalso;
 html = html.replace(tag, extra).replace('<head>', '<head><base href="/' + raiz + '">' + teste);
 f.srcdoc = html;
@@ -83,17 +84,23 @@ if (cenario === 'bloqueado' || cenario === 'pendente') {
   const rw = log.find((l) => l[1] === 'rewardedBreak');
   conferir(!!rw, 'rewardedBreak nao chamado');
   conferir(rw && rw[2] === true, 'som nao estava mudo durante o rewarded');
-  if (cenario === 'recusa') conferir(!ct().J.mao, 'premio dado com rewarded false');
-  else conferir(!!ct().J.mao, 'premio negado com rewarded true');
-  // termina o nivel 4 (sem intervalo) e o 5 (com intervalo ao entrar no 6)
+  const daDica = () => !!(ct().J.mao && ct().J.mao.origem === 'dica');
+  if (cenario === 'recusa') conferir(!daDica(), 'premio dado com rewarded false');
+  else conferir(daDica(), 'premio negado com rewarded true');
+  // joga sozinho alguns niveis: o primeiro intervalo so depois do tempo minimo
   ct().auto(120);
   await espera(12000);
   conferir(ct().J.nivel >= 6, 'nao chegou ao nivel 6 (nivel ' + ct().J.nivel + ')');
   const cb = log.filter((l) => l[1] === 'commercialBreak');
   const iMedida = (m) => log.findIndex((l) => l[1] === 'measure' && l[2] === m);
-  conferir(cb.length >= 1, 'nenhum commercialBreak na entrada do nivel 6');
-  // nada de intervalo nos 5 primeiros niveis: o primeiro vem entre o fim do 5 e o comeco do 6
-  conferir(cb.length && log.indexOf(cb[0]) > iMedida('level/5/complete') && log.indexOf(cb[0]) < iMedida('level/6/start'), 'primeiro commercialBreak fora da entrada do nivel 6');
+  conferir(cb.length >= 1, 'nenhum commercialBreak depois do tempo minimo');
+  // o primeiro vem numa troca de nivel (entre um complete e o start seguinte) e
+  // pelo menos 5 s depois do primeiro gameplayStart
+  const ini = log.find((l) => l[1] === 'gameplayStart');
+  const n0 = cb.length ? log.slice(0, log.indexOf(cb[0])).filter((l) => l[1] === 'measure' && /^level\/\d+\/complete$/.test(l[2])).pop() : null;
+  const nCb = n0 ? Number(n0[2].split('/')[1]) : 0;
+  conferir(cb.length && ini && cb[0][0] - ini[0] >= 5000, 'primeiro commercialBreak antes do tempo minimo');
+  conferir(nCb && log.indexOf(cb[0]) < iMedida(`level/${nCb + 1}/start`), 'primeiro commercialBreak fora de uma troca de nivel');
   conferir(cb[0] && cb[0][2] === true, 'som nao estava mudo durante o commercialBreak');
   const iCb = log.indexOf(cb[0]);
   const stopAntes = log.slice(0, iCb).map((l) => l[1]).lastIndexOf('gameplayStop') > log.slice(0, iCb).map((l) => l[1]).lastIndexOf('gameplayStart');
@@ -102,9 +109,9 @@ if (cenario === 'bloqueado' || cenario === 'pendente') {
   conferir(!depoisCb.includes('gameplayStart'), 'gameplayStart depois do anuncio sem novo toque');
   const fimCb = log.find((l) => l[1] === 'fimCommercial');
   conferir(fimCb && fimCb[2] === true, 'som voltou antes do fim do anuncio');
-  // o som volta antes de o nivel 6 comecar (num instante fixo outro anuncio pode estar aberto)
-  const m6 = log[iMedida('level/6/start')];
-  conferir(m6 && m6[3] === false, 'som nao voltou depois do anuncio');
+  // o som volta antes de o nivel seguinte comecar (num instante fixo outro anuncio pode estar aberto)
+  const mSeg = log[iMedida(`level/${nCb + 1}/start`)];
+  conferir(mSeg && mSeg[3] === false, 'som nao voltou depois do anuncio');
   const medidas = log.filter((l) => l[1] === 'measure').map((l) => l[2]);
   conferir(medidas.includes('level/4/start') && medidas.includes('level/4/complete'), 'measure de nivel faltando: ' + medidas.join(','));
 }

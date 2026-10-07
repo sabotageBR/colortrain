@@ -1069,18 +1069,11 @@ function trilho(g, lay, t, tema, r) {
   fimTrilho(g, lay, t, tema);
 }
 
-/** Marcas das vagas, para-choque, poste do sinal e linha de parada da locomotiva. */
+/** Para-choque, poste do sinal e linha de parada da locomotiva (as vagas livres sao da cena). */
 function fimTrilho(g, lay, t, tema) {
-  const { L, P, cap } = lay;
+  const { L } = lay;
   const y = t.yb;
   const x1 = t.xFim;
-  g.fillStyle = 'rgba(255,255,255,0.2)';
-  for (let s = 0; s <= cap; s++) {
-    const xm = t.xFrente - P / 2 + s * P;
-    g.beginPath();
-    g.arc(xm, y + 0.14 * L, Math.max(1, 0.022 * L), 0, Math.PI * 2);
-    g.fill();
-  }
   // para-choque com volume
   const pcx = x1 - 0.22 * L;
   caixa3d(g, pcx - 0.03 * L, pcx + 0.11 * L, y - 0.34 * L, y + 0.02 * L, 0.3 * L, { frente: tema.tinta, topo: '#4A5064', lado: '#0F1119' });

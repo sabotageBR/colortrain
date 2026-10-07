@@ -2,6 +2,23 @@
 // O contexto so nasce no primeiro toque (politica de autoplay). O mudo do
 // anuncio zera o ganho mestre ANTES de pedir o anuncio e suspende o contexto
 // 80 ms depois (padrao do hexadrop: o onStart do SDK pode nao chegar).
+//
+// Musica: laco pentatonico de 8 compassos (I-V-vi-IV), baixo e melodia
+// dedilhada, bem baixinho, num ganho proprio ligado ao mestre (mudo, anuncio
+// e aba oculta valem para ela tambem). Cada mundo troca a tonica.
+
+/** Graus da escala pentatonica maior, em semitons. */
+const PENTA = [0, 2, 4, 7, 9, 12, 14, 16];
+/** Melodia em colcheias (indice em PENTA, -1 = pausa): A e B, 4 compassos cada. */
+const MELODIA = [
+  0, -1, 2, 4, -1, 4, 2, -1, 3, -1, 4, 3, 2, -1, 1, -1, 2, -1, 4, 5, -1, 4, 3, -1, 2, -1, 1, 0, -1, -1, -1, -1,
+  4, -1, 5, 4, 3, -1, 2, -1, 3, -1, 4, -1, 5, 6, 5, -1, 4, -1, 3, 2, -1, 1, 2, -1, 1, -1, 0, -1, -1, -1, -1, -1,
+];
+/** Acorde de cada compasso (semitons sobre a tonica): I V vi IV. */
+const ACORDES = [0, 7, 9, 5];
+/** Tonica de cada mundo, em semitons sobre do. */
+const TONICAS = [0, 2, 4, 5, 7, -3, -1, 2, 0, 4];
+const COLCHEIA = 0.3; // s (100 bpm)
 
 export function criarAudio() {
   /** @type {AudioContext|null} */
@@ -14,6 +31,11 @@ export function criarAudio() {
   let mudoAnuncio = false;
   let abaOculta = false;
   const VOLUME = 0.6;
+  /** @type {GainNode|null} */
+  let musica = null;
+  let musProxima = 0;
+  let musPasso = 0;
+  let tonica = 0;
 
   const ganhoAlvo = () => (mudo || mudoAnuncio || abaOculta ? 0 : VOLUME);
 
@@ -28,8 +50,45 @@ export function criarAudio() {
       mestre = ctx.createGain();
       mestre.gain.value = ganhoAlvo();
       mestre.connect(ctx.destination);
+      musica = ctx.createGain();
+      musica.gain.value = 0.35;
+      musica.connect(mestre);
+      setInterval(agendarMusica, 120);
     } catch {
       ctx = null;
+    }
+  }
+
+  /** Nota da musica no tempo t do contexto. */
+  function notaMus(f, t, dur, tipo, vol) {
+    if (!ctx || !musica) return;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = /** @type {OscillatorType} */ (tipo);
+    o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g);
+    g.connect(musica);
+    o.start(t);
+    o.stop(t + dur + 0.03);
+  }
+
+  /** Agenda as colcheias dos proximos 0,3 s (nada calado ou suspenso; sem acumular). */
+  function agendarMusica() {
+    if (!ctx || ctx.state !== 'running' || ganhoAlvo() === 0) return;
+    const limite = ctx.currentTime + 0.3;
+    musProxima = Math.max(musProxima, ctx.currentTime + 0.02);
+    while (musProxima < limite) {
+      const passo = musPasso % MELODIA.length;
+      const acorde = ACORDES[Math.floor(passo / 8) % ACORDES.length];
+      const base = 261.63 * Math.pow(2, tonica / 12);
+      if (passo % 4 === 0) notaMus((base / 2) * Math.pow(2, acorde / 12), musProxima, COLCHEIA * 1.8, 'sine', 0.2);
+      const g = MELODIA[passo];
+      if (g >= 0) notaMus(base * 2 * Math.pow(2, PENTA[g] / 12), musProxima, COLCHEIA * 0.9, 'triangle', 0.11);
+      musProxima += COLCHEIA;
+      musPasso++;
     }
   }
 
@@ -148,6 +207,10 @@ export function criarAudio() {
     },
     tique() {
       tom(1200, 0.04, 'triangle', 0.07);
+    },
+    /** Tonica da musica pelo mundo. @param {number} i indice do mundo */
+    definirMundo(i) {
+      tonica = TONICAS[((i % TONICAS.length) + TONICAS.length) % TONICAS.length];
     },
   };
 }
