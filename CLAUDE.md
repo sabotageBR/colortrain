@@ -45,7 +45,7 @@ Puzzle de trens por cor para a Poki. Feito **só com HTML + JavaScript**: ES mod
   - `src/jogo/` não usa `Math.random`, DOM nem relógio;
   - sem `console.log`;
   - a única URL externa é o SDK da Poki.
-- Animações usam **um relógio só** (`performance.now()`), o mesmo da agenda (`setTimeout`). O carimbo do `requestAnimationFrame` andava separado e dessincronizava a partida.
+- Animações usam **um relógio só** (`agora()` do `main.js`, que é o `performance.now()` menos o tempo de pausa do portal), o mesmo da agenda (`agendar`, sobre `setTimeout`). O carimbo do `requestAnimationFrame` andava separado e dessincronizava a partida.
 - Texto quase todo em ícones. EN é o padrão, com PT e ES em `src/i18n/textos.js`.
 - Direção de arte (decidida em 2026-10-01): **peças com física em quase 3D**. O usuário rejeitou reskins e as pranchas de `docs/propostas/` (guardadas só como histórico, como `modelos/`); toda proposta visual vai como imagem ou protótipo jogável, nunca como descrição.
 
@@ -55,7 +55,20 @@ Puzzle de trens por cor para a Poki. Feito **só com HTML + JavaScript**: ES mod
 - `commercialBreak` acontece só na troca de nível e só depois de 3 min de jogo contados do primeiro toque (`MS_SEM_INTERVALO`), sem cooldown próprio. A recompensa de locomotiva nova aparece depois do anúncio, nunca junto.
 - Rewarded (dica, trilho extra, liberar locomotiva) só por escolha do jogador, e o prêmio só vale com `=== true`. A dica calcula a jogada antes de pedir o vídeo: sem jogada a mostrar, não cobra. Sem SDK os botões de vídeo somem. No localhost o prêmio é liberado para testes.
 - O som fica mudo antes do anúncio e quando a aba fica oculta.
+
+## californiagames.io (branch `californiagames`)
+- `node tools/empacotar.mjs --alvo=californiagames` monta `dist-californiagames/`: a tag da Poki vira `<script src="/sdk/v1/plataforma-sdk.js">` (a SDK nunca entra no build), o `poki.js` sai e `portais/californiagames.js` entra como `src/core/plataforma.js`. O zip vai para `../distribuicao/colortrain/californiagames/build/`. A build da Poki não muda.
+- O adaptador tem a cara do `poki.js` e mais `portal`, `semRitmoProprio`, `idioma`, `anunciosBloqueados`, `pausado`, `onPausa` e `capturarErro`. No `main.js` esses ramos só rodam no portal: idioma pelo `getLanguage`, intervalo em toda troca de nível fora do ensino (o portal limita a frequência), tamanho no recompensado (dica e locomotiva `small`, trilho extra `medium`) e botões de vídeo escondidos com bloqueador.
+- O `pause` do portal congela o relógio do jogo (`agora()`, o mesmo da cena): animações, agenda (`agendar`/`depois`), ociosidade e laço de quadros param, e o toque não vale até o `resume`. Testes do adaptador em `test/californiagames.test.js`.
 - Os nomes de telemetria ficam fixos: `measure('level', N, 'start'|'complete')` e, por `telemetria.js` (no máximo um envio por nível para cada par): `stuck` (dead, button, auto), `invalid` (color, capacity), `undo` (manual), `restart` (manual, undone), `hint` (free, ad), `extra` (ad), `tutorial` (wrong, hand, done).
+
+## Y8
+- `node tools/empacotar.mjs --alvo=y8` (ou `npm run y8`, que roda os testes antes e o `tools/y8check.mjs` depois) monta `dist-y8/`: a tag da Poki vira a do SDK da Y8 2-0 (`https://cdn.y8.com/minimal-sdk/2-0/y8.min.js`, async, com `onerror="window.__sdkFalhou=1;window.dispatchEvent(new Event('y8sdk.falhou'))"`: no `onerror` inline, `dispatchEvent` sozinho seria o do próprio `<script>`, e o adaptador ouve com `{ once: true, capture: true }`), o `poki.js` sai, `portais/y8.js` entra como `src/core/plataforma.js` e `portais/fila-sdk.js` (cópia do kit multiportal) como `src/core/fila-sdk.js`. No zip da Y8 não sobra menção a outro portal: o objeto `poki` do `main.js` vira `portal` e os comentários de linha inteira saem dos `.js` (`tirarComentarios`; nenhuma linha de template ou string pode começar por `//` ou `/*`). Os ids do painel (`appId`, `gameId`) ficam em `package.json` → `portais.y8` e o empacotador grava em `IDS`; sem eles a build falha. O zip vai para `../distribuicao/colortrain/y8/build/colortrain-y8-<versao>.zip` (e `.sha256`); a ficha do painel fica em `../distribuicao/colortrain/y8/ficha.md`.
+- O adaptador tem a cara do `poki.js` (sobre o `fila-sdk.js`, com `calarNoInicio` falso) e mais `portal`, `idiomaAposInit`, `intervaloSoNoClique`, `pausaNoAnuncio` e `pausaNoBlur`. O `sdkPronto` só liga com o SDK respondendo; script bloqueado = sem botões de vídeo, e o jogo segue na hora.
+- No `main.js`, só na Y8: o jogo começa em inglês e troca os textos quando o `getPlatformLocale` chega (`trocarIdioma`); na troca de nível, quando o intersticial pode sair (a regra da Poki de 3 min de jogo, fora do ensino, SDK pronto e 3 min desde o último), aparece o botão de seguir (`bSeguir`, "▶ N" com o próximo nível) e o `showAd('next')` só sai depois do clique nele; o `beforeAd` pausa o relógio e cala (motivo `anuncio` em `motivosPausa`), e o fim do break devolve; blur ou aba oculta abrem a tela de pausa (`#pausa`, motivo `foco`), com o som calado, e um toque nela retoma.
+- Os motivos da pausa (`portal`, `anuncio`, `foco`) somam: o relógio só anda sem nenhum. No californiagames só o `portal` existe e na Poki nenhum, então nada muda lá.
+- `node tools/y8check.mjs` prova o zip num Chrome headless pelo CDP (`tools/cdp.mjs`, cópia do kit; precisa do Node 22+), servido em `http://colortrain.test:<porta>/` para o jogo se comportar como fora do localhost: (a) SDK bloqueado (jogável em menos de 3 s, sem botões de vídeo, clique joga, console limpo), (a2) script que falha só depois do `init` (o `y8sdk.falhou` tem que chegar à janela: botões somem logo depois da falha, não no prazo de 4 s) e (b) SDK falso entregue no lugar do CDN (ids no `init`, idioma `es`, premiado só com `adViewed`, pausa no blur, intersticial só depois do clique no botão de seguir e um só em 3 min, pausa e mudo só no `beforeAd`). Prints em `.tmp/y8check-prints/`.
+- Testes do adaptador e do alvo em `test/y8.test.js`.
 
 ## Comandos
 - `npm test`: testes do node (regras, solucionador, níveis, layout, temas, garagem, telemetria, wrapper, estilo).
@@ -64,6 +77,8 @@ Puzzle de trens por cor para a Poki. Feito **só com HTML + JavaScript**: ES mod
 - `node tools/thumb.mjs`: thumbs da Poki (`tools/thumb.html`) em 1256 e 628, nas opções a, b e c em `marketing/thumb/opcoes/`. A oficial (`marketing/thumb/color-train-*`) é a b, e o JPG sai com `convert -quality 90`. A thumb mostra o puzzle (bloco no ar, destino com fantasma, trem pronto), não só um trem. `node tools/thumb.mjs modelo-1 modelo-2` gera as thumbs em estilo ícone (`tools/thumb-icone.html`), feitas a partir dos modelos do usuário: trem cartum em 3D projetado, cena sangrada e sem moldura.
 - `npm run sdkcheck`: banco do SDK falso (`tools/sdkcheck.html`) nos cenários normal, recusa, bloqueado, pendente e lsquebrado.
 - `npm run poki`: testes, depois `dist/`, verificação, zip em `dist-poki/color-train-<versao>.zip`, o sdkcheck sobre a build e os prints nos tamanhos de iframe da Poki.
+- `npm run y8`: testes, `dist-y8/`, verificação, zip em `../distribuicao/colortrain/y8/build/colortrain-y8-<versao>.zip` e o `tools/y8check.mjs` sobre o zip.
+- Os `tools/*.mjs` antigos chamam `google-chrome` pelo PATH (no macOS ele não existe: ponha antes no PATH um script que chame o `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`). O `tools/cdp.mjs` acha o Chrome sozinho (ou pela variável `CHROME`).
 - Rode um Chrome headless por vez. Use `spawn` assíncrono nas ferramentas, porque o servidor delas roda no mesmo processo.
 
 ## Por que não é clone (catálogo consultado em 2026-10-01)

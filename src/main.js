@@ -8,6 +8,19 @@
 // minutos de jogo; a Poki decide a frequencia) e o proximo nivel chega sem
 // tela no meio. Num beco sem saida aparece o socorro: voltar ate o ultimo
 // estado com solucao (sozinho, depois de alguns segundos parado).
+//
+// Na build do californiagames.io (tools/empacotar.mjs --alvo=californiagames) o
+// import vira core/plataforma.js (portais/californiagames.js), com a mesma cara
+// e mais: idioma do portal, sinais pause/resume (congelam o relogio do jogo e o
+// toque), bloqueador de anuncios, tamanho do recompensado e o intervalo em toda
+// troca de nivel fora do ensino (semRitmoProprio). Na Poki esses campos nao
+// existem, nenhum desses ramos roda e nada muda.
+//
+// Na build da Y8 (tools/empacotar.mjs --alvo=y8) o import vira core/plataforma.js
+// (portais/y8.js) e liga mais quatro ramos: idioma pelo getPlatformLocale depois
+// do init (idiomaAposInit; ingles ate la), intersticial so depois do clique no
+// botao de seguir (intervaloSoNoClique), pausa do beforeAd ao fim do break
+// (pausaNoAnuncio) e tela de pausa ao perder o foco (pausaNoBlur).
 
 import { criarCena } from './render/cena.js';
 import { calcularLayout, trilhoEm, trilhoProximo } from './render/layout.js';
@@ -27,15 +40,33 @@ import { criarGaragem, liberadas, progressoLoco, desenharPrevia } from './ui/gar
 
 const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const canvas = /** @type {HTMLCanvasElement} */ ($('cena'));
-const cena = criarCena(canvas);
+
+/**
+ * Pausa do portal (californiagames: aba oculta, dialogo do portal, botao de
+ * pausa e todo intervalo). Enquanto ela dura o relogio do jogo para: as
+ * animacoes, a agenda (depois/agendar) e a ociosidade ficam onde estao e o
+ * toque nao vale. Na Poki ela nunca liga e o relogio e o performance.now().
+ * @type {{ ativa: boolean, desde: number, total: number, fila: (() => void)[] }}
+ */
+const pausa = { ativa: false, desde: 0, total: 0, fila: [] };
+/** Relogio do jogo (o mesmo da cena): performance.now() sem o tempo pausado pelo portal. */
+const agora = () => (pausa.ativa ? pausa.desde : performance.now()) - pausa.total;
+
+const cena = criarCena(canvas, agora);
 const audio = criarAudio();
 const armazem = criarArmazem();
 const dep = lerDepuracao();
-const T = textos(escolherIdioma());
+// no californiagames o idioma vem do portal (getLanguage: pt-BR, en ou es), nunca do navegador; na Y8
+// ele so chega com o init (getPlatformLocale): o jogo comeca em ingles e troca os textos depois
+const idiomaPortal = poki.idioma;
+const T = textos(idiomaPortal ? escolherIdioma([idiomaPortal]) : poki.idiomaAposInit ? 'en' : escolherIdioma());
+if (idiomaPortal) document.documentElement.lang = idiomaPortal;
 const tele = criarTelemetria((c, o, a) => poki.measure(c, o, a));
 
 /** Primeiros minutos sem intervalo comercial (contados do primeiro toque). */
 const MS_SEM_INTERVALO = 180000;
+/** Y8 (intervaloSoNoClique): no minimo isto entre dois intersticiais (no relogio do jogo). */
+const MS_ENTRE_INTERVALOS = 180000;
 /** Parado no beco por tanto tempo, o jogo volta sozinho. */
 const MS_VOLTAR_SOZINHO = 5000;
 /** Orcamento do solucionador por jogada (beco provado ou incerto, nunca trava o quadro). */
@@ -86,6 +117,8 @@ const J = {
   ociosoDesde: 0,
   /** instante do primeiro toque de jogo (gate do primeiro intervalo) */
   inicioJogo: 0,
+  /** instante do ultimo intersticial pedido (Y8: no maximo um a cada MS_ENTRE_INTERVALOS) */
+  ultimoIntervalo: -Infinity,
   /** medicao da troca de nivel: ultimo engate e input liberado no nivel seguinte */
   tempos: { engate: 0, livre: 0 },
   tema0: '',
@@ -95,12 +128,36 @@ function salvar() {
   armazem.gravar('save', { v: VERSAO_SAVE, nivel: J.nivel, mudo: audio.mudo, loco: J.loco, extras: J.extras, vista: J.vista });
 }
 
+/**
+ * Agenda no relogio do jogo. Com o portal pausado ela espera o resume e, se
+ * houve pausa no meio, ainda espera o que o relogio do jogo nao andou. Sem
+ * pausa (sempre, na Poki) e um setTimeout simples.
+ * @param {number} ms @param {() => void} fn
+ */
+function agendar(ms, fn) {
+  const alvo = agora() + Math.max(0, ms);
+  const pausado0 = pausa.total;
+  const tentar = () => {
+    if (pausa.ativa) {
+      pausa.fila.push(tentar);
+      return;
+    }
+    const falta = alvo - agora();
+    if (pausa.total !== pausado0 && falta > 1) {
+      setTimeout(tentar, falta);
+      return;
+    }
+    fn();
+  };
+  setTimeout(tentar, Math.max(0, ms));
+}
+
 /** Agenda que morre com troca de nivel e com desfazer. */
 function depois(ms, fn) {
   const g = J.gen, d = J.desf;
-  setTimeout(() => {
+  agendar(ms, () => {
     if (g === J.gen && d === J.desf) fn();
-  }, Math.max(0, ms));
+  });
 }
 
 let proxId = 1;
@@ -114,7 +171,6 @@ function criarEstado(def) {
 const foto = () => J.st.trilhos.map((t) => t.slice());
 /** @param {any[][]} f */
 const textoDe = (f) => f.map((t) => t.map((v) => String.fromCharCode(65 + v.c)).join(''));
-const agora = () => performance.now();
 
 function analisarAgora() {
   J.analise = analisar(paraTexto(J.st), J.st.cap, { orcamento: ORCAMENTO_JOGADA });
@@ -147,6 +203,9 @@ function redimensionar() {
   cena.redimensionar(window.innerWidth, window.innerHeight, dpr);
   if (J.st.trilhos.length) cena.configurar(J.st, medirLayout(), J.tema);
   posicionarVoltar();
+  posicionarSeguir();
+  // com o laco parado pela pausa do portal, o canvas redimensionado (limpo) ganha um quadro
+  if (pausa.ativa) desenharQuadro(0);
 }
 
 // -------------------------------------------------------------------- HUD
@@ -161,7 +220,7 @@ function atualizarHud(pop = false) {
     placa.classList.add('pop');
   }
   $('bExtra').toggleAttribute('disabled', J.extraUsado);
-  for (const [id, chave] of [['bDesfazer', 'desfazer'], ['bRecomecar', 'recomecar'], ['bDica', 'dica'], ['bExtra', 'extra'], ['bSom', 'som'], ['bGaragem', 'garagem'], ['bVoltar', 'voltar']]) {
+  for (const [id, chave] of [['bDesfazer', 'desfazer'], ['bRecomecar', 'recomecar'], ['bDica', 'dica'], ['bExtra', 'extra'], ['bSom', 'som'], ['bGaragem', 'garagem'], ['bVoltar', 'voltar'], ['bSeguir', 'seguir'], ['bRetomar', 'continuar']]) {
     $(id).setAttribute('aria-label', T[chave]);
     $(id).title = T[chave];
   }
@@ -192,6 +251,17 @@ function atualizarHud(pop = false) {
   $('bGaragem').classList.toggle('novidade', liberadas(J.nivel, J.extras) > J.vista);
 }
 
+/**
+ * Troca os textos ja na tela (Y8: o idioma chega depois do init). A garagem le o mesmo T na hora de
+ * desenhar, e o cartao do mundo e o aviso leem quando aparecem.
+ * @param {string} cod 'en' | 'pt' | 'es'
+ */
+function trocarIdioma(cod) {
+  Object.assign(T, textos(cod));
+  document.documentElement.lang = cod;
+  atualizarHud();
+}
+
 /** Vibracao curta (celulares que suportam). @param {number|number[]} ms */
 function vibrar(ms) {
   try {
@@ -204,7 +274,7 @@ function avisarLocoNova(i) {
   /** @type {HTMLElement} */ (aviso.querySelector('span')).textContent = T.nova;
   aviso.hidden = false;
   desenharPrevia(/** @type {HTMLCanvasElement} */ (aviso.querySelector('canvas')), i, false, J.tema);
-  setTimeout(() => { aviso.hidden = true; }, 2600);
+  agendar(2600, () => { aviso.hidden = true; });
 }
 
 function mostrarMundo() {
@@ -213,7 +283,7 @@ function mostrarMundo() {
   /** @type {HTMLElement} */ (c.querySelector('small')).textContent = `${T.mundo} ${i + 1}`;
   /** @type {HTMLElement} */ (c.querySelector('b')).textContent = T[ORDEM_MUNDOS[i]] || ORDEM_MUNDOS[i];
   c.hidden = false;
-  setTimeout(() => { c.hidden = true; }, 1700);
+  agendar(1700, () => { c.hidden = true; });
 }
 
 // ----------------------------------------------------------- socorro (beco)
@@ -231,6 +301,36 @@ function posicionarVoltar() {
   else y = (lay.yTabuleiro + lay.yFimTabuleiro - h) / 2;
   b.style.left = `${Math.round(lay.Wu / 2 - w / 2)}px`;
   b.style.top = `${Math.round(y)}px`;
+}
+
+/** Botao de seguir (Y8): no meio do patio vazio, depois da partida dos trens. */
+function posicionarSeguir() {
+  const b = $('bSeguir');
+  const lay = cena.layout;
+  if (b.hidden || !lay) return;
+  const w = b.offsetWidth || 120;
+  const h = b.offsetHeight || 64;
+  b.style.left = `${Math.round(lay.Wu / 2 - w / 2)}px`;
+  b.style.top = `${Math.round((lay.yTabuleiro + lay.yFimTabuleiro - h) / 2)}px`;
+}
+
+/**
+ * Y8: mostra o botao de seguir (com o numero do proximo nivel) e resolve no clique do jogador. O
+ * intersticial sai logo depois desse clique, nunca sozinho.
+ * @returns {Promise<void>}
+ */
+function esperarSeguir() {
+  return new Promise((ok) => {
+    const b = $('bSeguir');
+    $('seguirN').textContent = String(J.nivel);
+    b.hidden = false;
+    posicionarSeguir();
+    b.addEventListener('click', () => {
+      b.hidden = true;
+      audio.iniciar();
+      ok();
+    }, { once: true });
+  });
 }
 
 /** Quantas jogadas voltar ate o ultimo estado com solucao (varre o historico de tras para frente). */
@@ -276,7 +376,7 @@ function voltarAteSolucao(sozinho) {
     if (!v || v.gen !== J.gen) return;
     if (J.hist.length > v.alvo) {
       restaurar(/** @type {any[][]} */ (J.hist.pop()));
-      setTimeout(passo, 300);
+      agendar(300, passo);
       return;
     }
     J.voltando = null;
@@ -427,10 +527,25 @@ async function proximoNivel() {
   const depoisN = liberadas(J.nivel, J.extras);
   salvar();
   // intervalo comercial na pausa natural entre niveis, so depois dos
-  // primeiros minutos de jogo (a Poki decide se mostra)
+  // primeiros minutos de jogo (a Poki decide se mostra). No californiagames
+  // (semRitmoProprio) o portal aplica o limite de frequencia (nada nos
+  // primeiros 30 s de gameplay, no maximo 1 a cada 120 s) e a documentacao
+  // pede o intervalo em todo ponto natural: os 3 min saem e fica so a regra de
+  // UX de nao interromper o ensino (o nivel que vem ainda e de tutorial).
   const limite = dep.intervaloMs || MS_SEM_INTERVALO;
-  if (J.inicioJogo && agora() - J.inicioJogo >= limite && !dep.semAnuncio) {
+  let naHora = poki.semRitmoProprio ? J.nivel > TUTORIAL.length : agora() - J.inicioJogo >= limite;
+  // Y8 (intervaloSoNoClique): o intersticial so pode sair logo depois de um clique num botao, nunca
+  // sozinho. Mesmo ponto e mesma regra da Poki (3 min de jogo), fora do ensino, com o SDK pronto e no
+  // maximo um a cada 3 min: so entao o botao de seguir aparece, e o anuncio espera o clique nele.
+  const noClique = !!poki.intervaloSoNoClique;
+  if (noClique) naHora = naHora && J.nivel > TUTORIAL.length && poki.sdkPronto && agora() - J.ultimoIntervalo >= MS_ENTRE_INTERVALOS;
+  if (J.inicioJogo && naHora && !dep.semAnuncio) {
     const g = J.gen;
+    if (noClique) {
+      await esperarSeguir();
+      if (g !== J.gen) return;
+      J.ultimoIntervalo = agora();
+    }
     await poki.commercialBreak();
     if (g !== J.gen) return;
   }
@@ -470,10 +585,12 @@ function restaurar(f) {
 /**
  * Video recompensado, so por escolha do jogador. Premio so com true. Em
  * desenvolvimento local sem SDK, libera direto para dar para testar.
+ * @param {'small'|'medium'|'large'} tamanho valor do premio (so no californiagames,
+ *   que pede { size, onStart }; na Poki a chamada segue sem tamanho, como sempre)
  * @returns {Promise<boolean>}
  */
-async function recompensa() {
-  if (poki.sdkPronto) return poki.rewardedBreak();
+async function recompensa(tamanho) {
+  if (poki.sdkPronto) return poki.portal ? poki.rewardedBreak(tamanho) : poki.rewardedBreak();
   return dep.local;
 }
 
@@ -502,7 +619,7 @@ async function dica() {
     if (!J.analise.caminho || !J.analise.caminho.length) return;
   }
   const g = J.gen;
-  if (!(await recompensa()) || g !== J.gen || J.fase !== 'jogando') return;
+  if (!(await recompensa('small')) || g !== J.gen || J.fase !== 'jogando') return;
   tele.evento('hint', 'ad');
   if (J.beco) {
     // no beco: volta na hora ate o estado com solucao e mostra a jogada dali
@@ -515,7 +632,7 @@ async function dica() {
 async function trilhoExtra() {
   if (J.fase !== 'jogando' || J.extraUsado || J.voltando) return;
   const g = J.gen;
-  if (!(await recompensa()) || g !== J.gen || J.fase !== 'jogando') return;
+  if (!(await recompensa('medium')) || g !== J.gen || J.fase !== 'jogando') return;
   tele.evento('extra', 'ad');
   J.extraUsado = true;
   J.st.trilhos.push([]);
@@ -540,7 +657,7 @@ const garagem = criarGaragem({
   },
   async aoLiberar() {
     if (liberadas(J.nivel, J.extras) >= PINTURAS.length) return false;
-    if (!(await recompensa())) return false;
+    if (!(await recompensa('small'))) return false;
     J.extras++;
     J.loco = liberadas(J.nivel, J.extras) - 1;
     J.vista = Math.max(J.vista, liberadas(J.nivel, J.extras));
@@ -738,19 +855,117 @@ botao('bSom', () => {
 });
 $('bGaragem').addEventListener('click', () => {
   audio.iniciar();
-  garagem.atualizar({ nivel: J.nivel, extras: J.extras, ativa: J.loco, comAnuncio: poki.sdkPronto || dep.local });
+  // com bloqueador de anuncios (californiagames) o botao de video da garagem some
+  garagem.atualizar({ nivel: J.nivel, extras: J.extras, ativa: J.loco, comAnuncio: (poki.sdkPronto || dep.local) && !poki.anunciosBloqueados });
   garagem.abrir();
 });
 $('aviso').addEventListener('click', () => $('bGaragem').click());
 
-// som para quando a aba some (a Poki cobra isso)
-document.addEventListener('visibilitychange', () => audio.pausarAba(document.hidden));
+// som para quando a aba some (a Poki cobra isso) e, na Y8, com a tela de pausa do foco
+document.addEventListener('visibilitychange', somDaAba);
+
+// ---------------------------------------------------------- pausa do portal
+// Sinais pause/resume do californiagames (aba oculta, dialogo do portal, botao
+// de pausa e todo intervalo): o relogio do jogo para, o laco de quadros para,
+// a agenda espera e o toque nao vale ate o resume. O jogo nao tem pausa
+// propria; a garagem aberta pelo jogador continua aberta no resume. O som fica
+// com mute/unmute (onAdStart/onAdEnd). Idempotente. Na Poki nao ha esse sinal.
+
+/** O laco de quadros parou na pausa e precisa voltar no resume. */
+let lacoParado = false;
+
+/** Arraste em andamento quando a pausa chega: o bloco volta para o trilho. */
+function cancelarToque() {
+  const tq = J.toque;
+  if (!tq) return;
+  J.toque = null;
+  if (!tq.arrastando) return;
+  cena.arrastar(null);
+  desmarcar();
+  cena.sincronizar();
+}
+
+/** @param {boolean} ativa */
+function pausaDoPortal(ativa) {
+  if (ativa === pausa.ativa) return;
+  if (ativa) {
+    pausa.desde = performance.now();
+    pausa.ativa = true;
+    cancelarToque();
+    return;
+  }
+  pausa.total += performance.now() - pausa.desde;
+  pausa.ativa = false;
+  const fila = pausa.fila;
+  pausa.fila = [];
+  for (const fn of fila) fn();
+  if (lacoParado) {
+    lacoParado = false;
+    requestAnimationFrame(quadro);
+  }
+}
+
+/**
+ * Motivos da pausa do relogio: 'portal' (pause/resume do californiagames), 'anuncio' (Y8: do beforeAd
+ * ao fim do break) e 'foco' (Y8: janela sem foco, ate o toque na tela de pausa). O relogio so anda
+ * sem motivo nenhum. Na Poki nenhum deles liga.
+ * @type {Set<string>}
+ */
+const motivosPausa = new Set();
+/** @param {string} motivo @param {boolean} ativo */
+function pausar(motivo, ativo) {
+  if (ativo) motivosPausa.add(motivo);
+  else motivosPausa.delete(motivo);
+  pausaDoPortal(motivosPausa.size > 0);
+}
+
+// com o portal pausado, toque e clique param aqui (antes do canvas, do HUD e da garagem); so a tela
+// de pausa do foco (Y8) recebe o toque, porque e ela que retoma
+for (const tipo of ['pointerdown', 'click']) {
+  window.addEventListener(tipo, (e) => {
+    if (!pausa.ativa) return;
+    if (e.target instanceof Element && e.target.closest('#pausa')) return;
+    e.stopPropagation();
+    e.preventDefault();
+  }, true);
+}
+
+// ----------------------------------------------------- foco (Y8: pausaNoBlur)
+// Perder o foco (clique fora do iframe, outra janela) ou a aba ficar oculta abre a tela de pausa: o
+// relogio para, o som cala e um toque nela retoma. Durante um anuncio nao abre (o break ja pausa e o
+// anuncio costuma levar o foco).
+
+/** Som da aba: calado com a aba oculta e, na Y8, com a tela de pausa aberta. */
+function somDaAba() {
+  audio.pausarAba(document.hidden || motivosPausa.has('foco'));
+}
+
+function abrirPausa() {
+  if (motivosPausa.has('foco') || poki.emAnuncio) return;
+  $('pausa').hidden = false;
+  pausar('foco', true);
+  somDaAba();
+}
+
+function fecharPausa() {
+  if (!motivosPausa.has('foco')) return;
+  $('pausa').hidden = true;
+  pausar('foco', false);
+  audio.iniciar();
+  somDaAba();
+}
+
+if (poki.pausaNoBlur) {
+  window.addEventListener('blur', abrirPausa);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) abrirPausa(); });
+  $('pausa').addEventListener('click', fecharPausa);
+}
 
 // ------------------------------------------------------------ ociosidade
 // Parado demais: a mao mostra a proxima jogada de graca (niveis iniciais) e,
 // no beco, o jogo volta sozinho ate o estado com solucao.
 setInterval(() => {
-  if (J.fase !== 'jogando' || J.voltando || J.toque || dep.auto || garagem.aberta) return;
+  if (pausa.ativa || J.fase !== 'jogando' || J.voltando || J.toque || dep.auto || garagem.aberta) return;
   const parado = agora() - J.ociosoDesde;
   if (J.beco) {
     if (agora() - Math.max(J.beco.desde, J.ociosoDesde) >= MS_VOLTAR_SOZINHO) voltarAteSolucao(true);
@@ -763,6 +978,18 @@ setInterval(() => {
 
 // --------------------------------------------------------------- quadro
 function quadro(t) {
+  // pausa do portal: o laco para aqui (o ultimo quadro fica na tela) e volta no resume
+  if (pausa.ativa) {
+    if (!lacoParado) desenharQuadro(t);
+    lacoParado = true;
+    return;
+  }
+  desenharQuadro(t);
+  requestAnimationFrame(quadro);
+}
+
+/** @param {number} t */
+function desenharQuadro(t) {
   const tq = J.toque;
   /** @type {any} */
   const extras = { sel: J.sel };
@@ -782,7 +1009,6 @@ function quadro(t) {
     if (de && para) extras.mao = { de, para, t0: J.mao.t0 };
   }
   cena.desenhar(t, extras);
-  requestAnimationFrame(quadro);
 }
 
 // --------------------------------------------------------------- teste
@@ -795,11 +1021,25 @@ function passoAuto() {
 }
 
 // ---------------------------------------------------------------- inicio
-poki.onAdStart = () => audio.mudoParaAnuncio();
-poki.onAdEnd = () => audio.voltarDoAnuncio();
+// Y8 (pausaNoAnuncio): o onAdStart vem do beforeAd (anuncio entrando) e o onAdEnd do fim do break, entao
+// o jogo pausa e volta junto com o som. Na Poki e no californiagames so o som muda aqui.
+poki.onAdStart = () => {
+  audio.mudoParaAnuncio();
+  if (poki.pausaNoAnuncio) pausar('anuncio', true);
+};
+poki.onAdEnd = () => {
+  if (poki.pausaNoAnuncio) pausar('anuncio', false);
+  audio.voltarDoAnuncio();
+};
+// californiagames: pause/resume do portal congelam o jogo (na Poki nao ha esse sinal)
+poki.onPausa = (/** @type {boolean} */ v) => pausar('portal', v);
+if (poki.pausado) pausar('portal', true);
 poki.init().then(() => {
-  // sem SDK (bloqueador) nao ha video, entao os botoes de video somem
-  if (!poki.sdkPronto && !dep.local) document.body.classList.add('sem-anuncio');
+  // sem SDK (bloqueador) nao ha video, entao os botoes de video somem; no
+  // californiagames tambem com o bloqueador que o portal detectou
+  if ((!poki.sdkPronto && !dep.local) || poki.anunciosBloqueados) document.body.classList.add('sem-anuncio');
+  // Y8: o idioma do subdominio chega com o init; sem ele, fica o ingles
+  if (poki.idiomaAposInit && poki.idioma) trocarIdioma(escolherIdioma([poki.idioma]));
 });
 audio.definirMudo(!!save.mudo);
 window.addEventListener('resize', redimensionar);
@@ -817,6 +1057,17 @@ if (dep.ganchos) {
     /** ms do ultimo engate de um nivel ate o input liberado no seguinte */
     get troca() {
       return J.tempos.livre - J.tempos.engate;
+    },
+    /** relogio do jogo (para durante a pausa do portal) */
+    agora,
+    /** pausa do portal ativa (californiagames) */
+    get pausado() {
+      return pausa.ativa;
+    },
+    /** vai direto para o nivel n (prints e roteiros de prova) @param {number} n */
+    irPara(n) {
+      J.nivel = Math.max(1, n | 0);
+      iniciarNivel(true);
     },
   };
 }

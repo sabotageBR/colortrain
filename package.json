@@ -9,6 +9,13 @@
     "servir": "node tools/servir.mjs",
     "niveis": "node tools/gerar-niveis.mjs",
     "sdkcheck": "node tools/sdkcheck.mjs",
-    "poki": "node --test test/*.test.js && node tools/empacotar.mjs && node tools/sdkcheck.mjs dist/ && node tools/prints-build.mjs"
+    "poki": "node --test test/*.test.js && node tools/empacotar.mjs && node tools/sdkcheck.mjs dist/ && node tools/prints-build.mjs",
+    "y8": "node --test test/*.test.js && node tools/empacotar.mjs --alvo=y8 && node tools/y8check.mjs"
+  },
+  "portais": {
+    "y8": {
+      "appId": "6b00df2e77e93571d525286b",
+      "gameId": "294573"
+    }
   }
 }

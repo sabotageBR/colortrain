@@ -59,3 +59,23 @@ test('unica URL externa e a do SDK da Poki', () => {
 test('index.html pede viewport-fit=cover', () => {
   assert.ok(/viewport-fit=cover/.test(ler(join(raiz, 'index.html'))));
 });
+
+test('adaptador do californiagames (portais/): sem URL externa, console.log, storage nem import', () => {
+  const t = ler(join(raiz, 'portais/californiagames.js'));
+  assert.ok(!/https?:\/\//.test(t), 'URL externa');
+  assert.ok(!/console\.(log|info|debug)\s*\(/.test(t), 'console.log');
+  assert.ok(!/localStorage|sessionStorage|indexedDB/.test(t), 'storage');
+  assert.ok(!/^\s*import\s/m.test(t), 'import');
+  assert.ok(!/rewardedBreak\(\s*aoIniciar|rewardedBreak\(\s*\(\)/.test(t), 'rewardedBreak na forma de funcao');
+  assert.ok(!/movePill|openExternalLink/.test(t), 'recurso da Poki');
+});
+
+test('adaptador da Y8 (portais/): sem URL externa, console.log nem storage; so importa o fila-sdk.js', () => {
+  for (const nome of ['y8.js', 'fila-sdk.js']) {
+    const t = ler(join(raiz, 'portais', nome));
+    assert.ok(!/https?:\/\//.test(t.replace(/^\s*\/\/.*$/gm, '')), `${nome}: URL externa`);
+    assert.ok(!/console\.(log|info|debug)\s*\(/.test(t), `${nome}: console.log`);
+    assert.ok(!/localStorage|sessionStorage|indexedDB/.test(t), `${nome}: storage`);
+    for (const m of t.matchAll(/^\s*import\s[^;]*from\s+'([^']+)'/gm)) assert.equal(m[1], './fila-sdk.js', `${nome}: import ${m[1]}`);
+  }
+});

@@ -113,3 +113,12 @@ body.tutorial #bDica,body.tutorial #bExtra,body.tutorial #bRecomecar{visibility:
 .mundo small{font-weight:600;font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.6}
 .mundo b{font-size:26px;line-height:1.1}
 .mundo[hidden]{display:none}
+
+/* Y8: botao de seguir (o intersticial so sai depois de um clique) e tela de pausa ao perder o foco */
+.btn.seguir{position:fixed;z-index:4;width:auto;height:64px;padding:0 26px 0 20px;border-radius:999px;display:flex;align-items:center;gap:8px;background:var(--acento);color:#fff;box-shadow:var(--sombra-forte);font:inherit;font-weight:700;font-size:26px}
+.btn.seguir svg{width:30px;height:30px}
+.btn.seguir[hidden]{display:none}
+.pausa{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(14,16,30,.55);cursor:pointer}
+.pausa[hidden]{display:none}
+.pausa .btn{width:96px;height:96px;background:var(--acento);color:#fff;box-shadow:var(--sombra-forte)}
+.pausa .btn svg{width:44px;height:44px}

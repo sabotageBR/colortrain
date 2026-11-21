@@ -23,8 +23,12 @@ import { criarCarga, passoCarga, impulsoCarga } from './fisica.js';
 const suave = (p) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
 const saida = (p) => 1 - Math.pow(1 - p, 3);
 
-/** @param {HTMLCanvasElement} canvas */
-export function criarCena(canvas) {
+/**
+ * @param {HTMLCanvasElement} canvas
+ * @param {() => number} [base] relogio do jogo em ms: o performance.now(), ou o do main.js, que
+ *   para enquanto o portal mantem o jogo pausado (californiagames)
+ */
+export function criarCena(canvas, base = () => performance.now()) {
   const ctx = /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d'));
   let W = 1, H = 1, dpr = 1;
   /** @type {Layout|null} */
@@ -64,7 +68,7 @@ export function criarCena(canvas) {
    * congelavam ou terminavam depois do que a agenda esperava.
    */
   const relogio = () => {
-    const t = performance.now();
+    const t = base();
     if (t > agora) agora = t;
     return agora;
   };
